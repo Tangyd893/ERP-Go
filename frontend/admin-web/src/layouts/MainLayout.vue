@@ -1,17 +1,54 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { useRouter, useRoute } from "vue-router";
 
-const activeMenu = ref("dashboard");
+const router = useRouter();
+const route = useRoute();
+const activeMenu = ref(route.path);
+
+const menuItems = [
+  { path: "/dashboard", title: "首页", icon: "DataAnalysis" },
+  {
+    title: "系统管理",
+    icon: "Setting",
+    children: [
+      { path: "/system/users", title: "用户管理", icon: "User" },
+      { path: "/system/roles", title: "角色管理", icon: "Avatar" },
+      { path: "/system/org", title: "组织管理", icon: "OfficeBuilding" },
+      { path: "/system/audit", title: "操作审计", icon: "DocumentChecked" },
+    ],
+  },
+  {
+    title: "商品管理",
+    icon: "Goods",
+    children: [
+      { path: "/product/list", title: "商品列表", icon: "List" },
+      { path: "/product/sku-mapping", title: "SKU 映射", icon: "Connection" },
+    ],
+  },
+  {
+    title: "订单管理",
+    icon: "Document",
+    children: [
+      { path: "/order/list", title: "订单列表", icon: "Tickets" },
+      { path: "/order/audit", title: "订单审核", icon: "Checked" },
+    ],
+  },
+  { path: "/inventory", title: "库存管理", icon: "Box" },
+  { path: "/warehouse", title: "仓储管理", icon: "House" },
+];
 
 const handleMenuSelect = (index: string) => {
-  activeMenu.value = index;
+  if (index.startsWith("/")) {
+    router.push(index);
+  }
 };
 </script>
 
 <template>
   <el-container style="height: 100vh">
-    <el-aside width="220px" style="background-color: #304156">
-      <div style="height: 60px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px; font-weight: bold">
+    <el-aside width="220px" style="background-color: #304156; overflow-y: auto">
+      <div style="height: 60px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px; font-weight: bold; border-bottom: 1px solid #4a5a6a">
         ERP-Go
       </div>
       <el-menu
@@ -21,51 +58,49 @@ const handleMenuSelect = (index: string) => {
         active-text-color="#409EFF"
         @select="handleMenuSelect"
       >
-        <el-menu-item index="dashboard">
-          <el-icon><el-icon-data-analysis /></el-icon>
-          <span>首页</span>
-        </el-menu-item>
-        <el-sub-menu index="product">
-          <template #title>
-            <el-icon><el-icon-goods /></el-icon>
-            <span>商品管理</span>
-          </template>
-          <el-menu-item index="product-list">商品列表</el-menu-item>
-          <el-menu-item index="sku-mapping">SKU 映射</el-menu-item>
-        </el-sub-menu>
-        <el-sub-menu index="order">
-          <template #title>
-            <el-icon><el-icon-document /></el-icon>
-            <span>订单管理</span>
-          </template>
-          <el-menu-item index="order-list">订单列表</el-menu-item>
-          <el-menu-item index="order-audit">订单审核</el-menu-item>
-        </el-sub-menu>
-        <el-menu-item index="inventory">
-          <el-icon><el-icon-box /></el-icon>
-          <span>库存管理</span>
-        </el-menu-item>
-        <el-menu-item index="warehouse">
-          <el-icon><el-icon-house /></el-icon>
-          <span>仓储管理</span>
-        </el-menu-item>
+        <template v-for="item in menuItems" :key="item.path || item.title">
+          <el-sub-menu v-if="item.children" :index="item.title">
+            <template #title>
+              <el-icon>
+                <component :is="item.icon" />
+              </el-icon>
+              <span>{{ item.title }}</span>
+            </template>
+            <el-menu-item v-for="child in item.children" :key="child.path" :index="child.path">
+              <el-icon>
+                <component :is="child.icon" />
+              </el-icon>
+              <span>{{ child.title }}</span>
+            </el-menu-item>
+          </el-sub-menu>
+          <el-menu-item v-else :index="item.path">
+            <el-icon>
+              <component :is="item.icon" />
+            </el-icon>
+            <span>{{ item.title }}</span>
+          </el-menu-item>
+        </template>
       </el-menu>
     </el-aside>
     <el-container>
-      <el-header style="height: 60px; border-bottom: 1px solid #e6e6e6; display: flex; align-items: center; justify-content: flex-end; padding: 0 20px">
+      <el-header style="height: 60px; border-bottom: 1px solid #e6e6e6; display: flex; align-items: center; justify-content: space-between; padding: 0 20px">
+        <el-breadcrumb>
+          <el-breadcrumb-item :to="{ path: '/dashboard' }">首页</el-breadcrumb-item>
+          <el-breadcrumb-item v-if="route.meta.title">{{ route.meta.title }}</el-breadcrumb-item>
+        </el-breadcrumb>
         <el-dropdown>
           <span style="cursor: pointer">
-            管理员 <el-icon><el-icon-arrow-down /></el-icon>
+            管理员 <el-icon><ArrowDown /></el-icon>
           </span>
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item>个人设置</el-dropdown-item>
-              <el-dropdown-item divided>退出登录</el-dropdown-item>
+              <el-dropdown-item divided @click="router.push('/login')">退出登录</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
       </el-header>
-      <el-main>
+      <el-main style="background: #f0f2f5">
         <router-view />
       </el-main>
     </el-container>
@@ -75,5 +110,8 @@ const handleMenuSelect = (index: string) => {
 <style scoped>
 .el-menu {
   border-right: none;
+}
+.el-breadcrumb {
+  font-size: 14px;
 }
 </style>

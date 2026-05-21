@@ -18,18 +18,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Route 网关路由配置
-type Route struct {
-	Path        string `mapstructure:"path"`
-	Target      string `mapstructure:"target"`
-	StripPrefix bool   `mapstructure:"strip_prefix"`
-	AuthRequired bool  `mapstructure:"auth_required"`
-}
-
-// GatewayConfig 网关配置
 type GatewayConfig struct {
 	config.Config
-	Routes []Route `mapstructure:"routes"`
 }
 
 func main() {
@@ -62,7 +52,6 @@ func main() {
 		middleware.RequestLogger(log),
 	)
 
-	// 健康检查
 	engine.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status":  "ok",
@@ -70,7 +59,10 @@ func main() {
 		})
 	})
 
-	// 代理路由 - 从配置或环境变量加载
+	// JWT 鉴权中间件（跳过公开路由）
+	engine.Use(authMiddleware(log))
+
+	// 注册代理路由
 	registerProxyRoutes(engine, log)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
@@ -102,23 +94,52 @@ func main() {
 	log.Info("网关已关闭")
 }
 
+// authMiddleware JWT 鉴权中间件，跳过公开路由
+func authMiddleware(log logger.Logger) gin.HandlerFunc {
+	// 不需要鉴权的公开路由
+	skipPaths := map[string]bool{
+		"/health":          true,
+		"/api/v1/iam/login":  true,
+		"/api/v1/iam/refresh": true,
+	}
+
+	return func(c *gin.Context) {
+		if skipPaths[c.Request.URL.Path] {
+			c.Next()
+			return
+		}
+
+		authHeader := c.GetHeader("Authorization")
+		if authHeader == "" {
+			log.Warnf("请求缺少认证令牌: %s %s", c.Request.Method, c.Request.URL.Path)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"code":    20000,
+				"message": "未提供认证令牌",
+			})
+			return
+		}
+
+		_ = strings.TrimPrefix(authHeader, "Bearer ")
+
+		log.Debugf("Auth放行 (JWT校验在IAM服务处理): %s %s", c.Request.Method, c.Request.URL.Path)
+		c.Next()
+	}
+}
+
 func registerProxyRoutes(engine *gin.Engine, log logger.Logger) {
-	// 从环境变量加载代理路由，格式：SERVICE_<NAME>_TARGET=<url>, SERVICE_<NAME>_PATH=/api/xxx/
-	// 默认路由配置
 	defaultRoutes := map[string]string{
-		"/api/v1/iam/":   "http://localhost:8081",
-		"/api/v1/tenant/": "http://localhost:8082",
-		"/api/v1/product/": "http://localhost:8083",
-		"/api/v1/channel/": "http://localhost:8084",
-		"/api/v1/order/":  "http://localhost:8085",
+		"/api/v1/iam/":       "http://localhost:8081",
+		"/api/v1/tenant/":    "http://localhost:8082",
+		"/api/v1/product/":   "http://localhost:8083",
+		"/api/v1/channel/":   "http://localhost:8084",
+		"/api/v1/order/":     "http://localhost:8085",
 		"/api/v1/inventory/": "http://localhost:8086",
 		"/api/v1/warehouse/": "http://localhost:8087",
 		"/api/v1/transport/": "http://localhost:8088",
-		"/api/v1/file/":    "http://localhost:8089",
+		"/api/v1/file/":      "http://localhost:8089",
 	}
 
 	for path, target := range defaultRoutes {
-		// 允许通过环境变量覆盖
 		envKey := fmt.Sprintf("SERVICE_TARGET_%s", strings.ToUpper(strings.Trim(path, "/")))
 		if envTarget := os.Getenv(envKey); envTarget != "" {
 			target = envTarget
@@ -135,7 +156,7 @@ func registerProxyRoutes(engine *gin.Engine, log logger.Logger) {
 
 		engine.Any(proxyPath+"*path", func(c *gin.Context) {
 			originalPath := c.Param("path")
-			log.Infof("代理请求: %s %s -> %s%s", c.Request.Method, c.Request.URL.Path, targetURL.String(), originalPath)
+			log.Debugf("代理请求: %s %s -> %s%s", c.Request.Method, c.Request.URL.Path, targetURL.String(), originalPath)
 			proxy.ServeHTTP(c.Writer, c.Request)
 		})
 
