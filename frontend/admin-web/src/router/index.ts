@@ -97,6 +97,18 @@ const routes = [
         component: () => import("@/views/notification/NotificationCenter.vue"),
         meta: { title: "通知中心", icon: "Bell" },
       },
+      {
+        path: "purchase",
+        name: "PurchaseManagement",
+        component: () => import("@/views/purchase/PurchaseManagement.vue"),
+        meta: { title: "采购管理", icon: "ShoppingCart" },
+      },
+      {
+        path: "finance",
+        name: "FinanceManagement",
+        component: () => import("@/views/finance/FinanceManagement.vue"),
+        meta: { title: "财务管理", icon: "Money" },
+      },
     ],
   },
 ];
