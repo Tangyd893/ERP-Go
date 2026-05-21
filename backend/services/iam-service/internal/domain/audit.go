@@ -31,6 +31,8 @@ type AuditLog struct {
 	UserAgent    string      `json:"user_agent,omitempty"`
 	RequestID    string      `json:"request_id,omitempty"`
 	TraceID      string      `json:"trace_id,omitempty"`
+	Result       string      `json:"result,omitempty"`
+	ResultDetail string      `json:"result_detail,omitempty"`
 	CreatedAt    time.Time   `json:"created_at"`
 }
 

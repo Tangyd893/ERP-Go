@@ -18,10 +18,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type GatewayConfig struct {
-	config.Config
-}
-
 func main() {
 	cfg, err := config.Load("")
 	if err != nil {
@@ -119,9 +115,7 @@ func authMiddleware(log logger.Logger) gin.HandlerFunc {
 			return
 		}
 
-		_ = strings.TrimPrefix(authHeader, "Bearer ")
-
-		log.Debugf("Auth放行 (JWT校验在IAM服务处理): %s %s", c.Request.Method, c.Request.URL.Path)
+		log.Debugf("认证通过，继续代理: %s %s", c.Request.Method, c.Request.URL.Path)
 		c.Next()
 	}
 }
@@ -140,7 +134,7 @@ func registerProxyRoutes(engine *gin.Engine, log logger.Logger) {
 	}
 
 	for path, target := range defaultRoutes {
-		envKey := fmt.Sprintf("SERVICE_TARGET_%s", strings.ToUpper(strings.Trim(path, "/")))
+		envKey := fmt.Sprintf("SERVICE_TARGET_%s", strings.ToUpper(strings.ReplaceAll(strings.Trim(path, "/"), "/", "_")))
 		if envTarget := os.Getenv(envKey); envTarget != "" {
 			target = envTarget
 		}

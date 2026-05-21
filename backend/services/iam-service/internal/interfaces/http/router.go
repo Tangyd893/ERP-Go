@@ -21,6 +21,7 @@ type Server struct {
 	roleService *app.RoleService
 	log         logger.Logger
 	cfg         *config.Config
+	jwtSecret   string
 }
 
 // NewServer 创建 IAM HTTP 服务
@@ -30,6 +31,7 @@ func NewServer(
 	roleService *app.RoleService,
 	log logger.Logger,
 	cfg *config.Config,
+	jwtSecret string,
 ) *Server {
 	return &Server{
 		authService: authService,
@@ -37,6 +39,7 @@ func NewServer(
 		roleService: roleService,
 		log:         log,
 		cfg:         cfg,
+		jwtSecret:   jwtSecret,
 	}
 }
 
@@ -98,7 +101,7 @@ func (s *Server) authMiddleware() gin.HandlerFunc {
 		}
 
 		tokenMgr := infra.NewJWTTokenManager(
-			s.cfg.Server.Name, // placeholder
+			s.jwtSecret,
 			2*time.Hour,
 			7*24*time.Hour,
 			"erp-go",

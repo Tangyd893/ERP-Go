@@ -10,15 +10,14 @@ import (
 	"time"
 
 	"github.com/Tangyd893/ERP-Go/backend/services/iam-service/internal/app"
-	domain "github.com/Tangyd893/ERP-Go/backend/services/iam-service/internal/domain"
+	"github.com/Tangyd893/ERP-Go/backend/services/iam-service/internal/infra"
+	"github.com/Tangyd893/ERP-Go/backend/services/iam-service/internal/infra/repository"
 	httpiface "github.com/Tangyd893/ERP-Go/backend/services/iam-service/internal/interfaces/http"
 	"github.com/Tangyd893/ERP-Go/backend/shared/config"
 	"github.com/Tangyd893/ERP-Go/backend/shared/logger"
 	"github.com/Tangyd893/ERP-Go/backend/shared/middleware"
 	"github.com/gin-gonic/gin"
-
-	// 服务层具体实现（数据库仓储等将在后续迁移后实现）
-	_ "github.com/Tangyd893/ERP-Go/backend/services/iam-service/internal/infra"
+	"gorm.io/gorm"
 )
 
 func main() {
@@ -28,7 +27,9 @@ func main() {
 	}
 
 	cfg.Server.Name = "iam-service"
-	cfg.Server.Port = 8081
+	if cfg.Server.Port == 0 || cfg.Server.Port == 8080 {
+		cfg.Server.Port = 8081
+	}
 
 	log := logger.New(
 		cfg.Log.Level,
@@ -37,6 +38,37 @@ func main() {
 		cfg.Server.Name,
 		os.Getenv("ENVIRONMENT"),
 	)
+
+	jwtSecret := os.Getenv("JWT_SECRET")
+	if jwtSecret == "" {
+		jwtSecret = "erp-go-dev-secret-change-in-production"
+	}
+
+	var (
+		db          *gorm.DB
+		authService *app.AuthService
+		userService *app.UserService
+		roleService *app.RoleService
+	)
+
+	database, dbErr := repository.NewDB(cfg.Database)
+	if dbErr != nil {
+		log.Warnf("数据库连接失败，使用占位模式: %v", dbErr)
+	} else {
+		log.Info("数据库连接成功")
+		db = database
+
+		userRepo := repository.NewUserRepository(db)
+		roleRepo := repository.NewRoleRepository(db)
+		permRepo := repository.NewPermissionRepository(db)
+		auditRepo := repository.NewAuditRepository(db)
+		jwtMgr := infra.NewJWTTokenManager(jwtSecret, 2*time.Hour, 7*24*time.Hour, "erp-go")
+		passHasher := infra.NewBcryptPasswordHasher(10)
+
+		authService = app.NewAuthService(userRepo, roleRepo, jwtMgr, passHasher, auditRepo)
+		userService = app.NewUserService(userRepo, roleRepo, passHasher, auditRepo)
+		roleService = app.NewRoleService(roleRepo, permRepo, auditRepo)
+	}
 
 	if cfg.Server.Mode == "release" {
 		gin.SetMode(gin.ReleaseMode)
@@ -54,38 +86,33 @@ func main() {
 		middleware.RequestLogger(log),
 	)
 
-	// 健康检查
 	engine.GET("/health", func(c *gin.Context) {
+		status := "ok"
+		if db == nil {
+			status = "degraded"
+		}
 		c.JSON(http.StatusOK, gin.H{
-			"status":  "ok",
+			"status":  status,
 			"service": cfg.Server.Name,
+			"db":      db != nil,
 		})
 	})
 
-	// 占位：后续数据库迁移完成后替换为真实仓储实现
-	// userRepo := repository.NewUserRepository(db)
-	// roleRepo := repository.NewRoleRepository(db)
-	// permRepo := repository.NewPermissionRepository(db)
-	// auditRepo := repository.NewAuditRepository(db)
-	// jwtMgr := infra.NewJWTTokenManager(jwtSecret, 2*time.Hour, 7*24*time.Hour, "erp-go")
-	// passHasher := infra.NewBcryptPasswordHasher(10)
-	// authService := app.NewAuthService(userRepo, roleRepo, jwtMgr, passHasher, auditRepo)
-	// userService := app.NewUserService(userRepo, roleRepo, passHasher, auditRepo)
-	// roleService := app.NewRoleService(roleRepo, permRepo, auditRepo)
-	// server := httpiface.NewServer(authService, userService, roleService, log, cfg)
-	// server.RegisterRoutes(engine)
-
-	// 注册API路由说明（初始状态无数据库可用）
-	api := engine.Group("/api/v1/iam")
-	{
-		api.POST("/login", notImplYet)
-		api.POST("/refresh", notImplYet)
-		api.GET("/users", notImplYet)
-		api.GET("/roles", notImplYet)
-		api.GET("/permissions", notImplYet)
+	if authService != nil {
+		server := httpiface.NewServer(authService, userService, roleService, log, cfg, jwtSecret)
+		server.RegisterRoutes(engine)
+		log.Info("IAM 服务启动，数据库模式")
+	} else {
+		api := engine.Group("/api/v1/iam")
+		{
+			api.POST("/login", notImplYet)
+			api.POST("/refresh", notImplYet)
+			api.GET("/users", notImplYet)
+			api.GET("/roles", notImplYet)
+			api.GET("/permissions", notImplYet)
+		}
+		log.Info("IAM 服务启动，占位模式")
 	}
-
-	log.Info("IAM 服务启动（数据库仓储待实现），占位路由已注册")
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{
@@ -110,15 +137,16 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	if db != nil {
+		if sqlDB, err := db.DB(); err == nil {
+			sqlDB.Close()
+		}
+	}
+
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Errorf("IAM 服务关闭异常: %v", err)
 	}
 	log.Info("IAM 服务已关闭")
-
-	// 避免未使用导入报错
-	_ = domain.User{}
-	_ = app.AuthService{}
-	_ = httpiface.Server{}
 }
 
 func notImplYet(c *gin.Context) {

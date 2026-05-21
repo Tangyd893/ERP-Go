@@ -162,6 +162,8 @@ func (s *AuthService) writeAudit(ctx context.Context, tenantID, userID, username
 		Detail:       detail,
 		IP:           ip,
 		UserAgent:    userAgent,
+		Result:       result,
+		ResultDetail: resultDetail,
 		CreatedAt:    time.Now(),
 	}
 	_ = s.auditRepo.Write(ctx, log)

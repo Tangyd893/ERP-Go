@@ -9,10 +9,12 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Tangyd893/ERP-Go/backend/services/tenant-service/internal/infra/repository"
 	"github.com/Tangyd893/ERP-Go/backend/shared/config"
 	"github.com/Tangyd893/ERP-Go/backend/shared/logger"
 	"github.com/Tangyd893/ERP-Go/backend/shared/middleware"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func main() {
@@ -22,7 +24,9 @@ func main() {
 	}
 
 	cfg.Server.Name = "tenant-service"
-	cfg.Server.Port = 8082
+	if cfg.Server.Port == 0 || cfg.Server.Port == 8080 {
+		cfg.Server.Port = 8082
+	}
 
 	log := logger.New(
 		cfg.Log.Level,
@@ -31,6 +35,17 @@ func main() {
 		cfg.Server.Name,
 		os.Getenv("ENVIRONMENT"),
 	)
+
+	var db *gorm.DB
+	database, dbErr := repository.NewDB(cfg.Database)
+	if dbErr != nil {
+		log.Warnf("数据库连接失败，使用占位模式: %v", dbErr)
+	} else {
+		log.Info("数据库连接成功")
+		db = database
+		_ = repository.NewTenantRepository(db)
+		_ = repository.NewOrgRepository(db)
+	}
 
 	if cfg.Server.Mode == "release" {
 		gin.SetMode(gin.ReleaseMode)
@@ -49,9 +64,14 @@ func main() {
 	)
 
 	engine.GET("/health", func(c *gin.Context) {
+		status := "ok"
+		if db == nil {
+			status = "degraded"
+		}
 		c.JSON(http.StatusOK, gin.H{
-			"status":  "ok",
+			"status":  status,
 			"service": cfg.Server.Name,
+			"db":      db != nil,
 		})
 	})
 
@@ -62,8 +82,6 @@ func main() {
 		api.GET("/departments", notImpl("部门列表"))
 		api.GET("/positions", notImpl("岗位列表"))
 	}
-
-	log.Info("Tenant 服务启动（数据库仓储待实现）")
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{
@@ -87,6 +105,12 @@ func main() {
 	log.Info("正在关闭 Tenant 服务...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	if db != nil {
+		if sqlDB, err := db.DB(); err == nil {
+			sqlDB.Close()
+		}
+	}
 
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Errorf("Tenant 服务关闭异常: %v", err)
