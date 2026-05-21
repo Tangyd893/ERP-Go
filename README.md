@@ -86,7 +86,7 @@ API Gateway
         +-- file-service            文件服务
         +-- notification-service    通知服务
 
-PostgreSQL | Redis | RabbitMQ/Kafka/NATS | MinIO/S3 | OpenSearch/Elasticsearch
+PostgreSQL | Redis | RabbitMQ | MinIO | OpenSearch
 Prometheus | Grafana | Loki | Tempo/Jaeger
 ```
 
@@ -104,17 +104,17 @@ Prometheus | Grafana | Loki | Tempo/Jaeger
 
 | 层级 | 技术 |
 |------|------|
-| 后端 | Go、REST、gRPC、领域事件 |
+| 后端 | Go + Gin，统一使用 Golang 实现后端微服务 |
 | 网关 | API Gateway、统一鉴权、路由、限流、熔断 |
-| 数据库 | PostgreSQL 优先，MySQL 可选 |
-| 缓存 | Redis Cluster |
-| 异步事件 | RabbitMQ、Kafka 或 NATS，Outbox/Inbox 保障可靠消息 |
-| 对象存储 | MinIO 或 S3 |
-| 搜索分析 | OpenSearch、Elasticsearch、ClickHouse 预留 |
-| 前端 | React/Vue + TypeScript |
-| 仓库终端 | PDA H5、扫码作业、移动端适配 |
+| 数据库 | PostgreSQL |
+| 缓存 | Redis |
+| 异步事件 | RabbitMQ，Outbox/Inbox 保障可靠消息 |
+| 对象存储 | MinIO，生产可对接 S3 兼容存储 |
+| 搜索分析 | OpenSearch，ClickHouse 作为后续分析库预留 |
+| 前端 | Vue 3 + TypeScript + Vite + Pinia + Vue Router + Element Plus |
+| 仓库终端 | Vue 3 H5 / PDA 扫码作业 |
 | 监控 | OpenTelemetry、Prometheus、Grafana、Loki、Tempo/Jaeger |
-| 本地编排 | Docker Compose |
+| 中间件管理 | 统一由 `docker/` 目录管理，本地使用 Docker Compose |
 | 生产部署 | Kubernetes |
 
 ## 服务规划
@@ -221,11 +221,13 @@ docs/文档索引.md
 推荐阅读顺序：
 
 1. [项目架构设计](docs/项目架构设计.md)
-2. [领域模型设计](docs/领域模型设计.md)
-3. [微服务设计说明](docs/微服务设计说明.md)
-4. [接口与事件设计](docs/接口与事件设计.md)
-5. [数据模型设计](docs/数据模型设计.md)
-6. [实施路线与工程规范](docs/实施路线与工程规范.md)
+2. [技术栈与中间件管理规范](docs/技术栈与中间件管理规范.md)
+3. [领域模型设计](docs/领域模型设计.md)
+4. [微服务设计说明](docs/微服务设计说明.md)
+5. [接口与事件设计](docs/接口与事件设计.md)
+6. [数据模型设计](docs/数据模型设计.md)
+7. [项目里程碑与全流程待办清单](docs/项目里程碑与全流程待办清单.md)
+8. [实施路线与工程规范](docs/实施路线与工程规范.md)
 
 ## 验证命令
 
@@ -263,7 +265,7 @@ npm run build
 3. 细化订单、库存、WMS 出库、TMS 发运和采购入库状态机。
 4. 输出第一阶段数据库 migration 草案。
 5. 设计 API Gateway 路由目录和服务注册发现方案。
-6. 搭建本地 Docker Compose 基础设施，包括 PostgreSQL、Redis、消息队列、MinIO 和 OpenSearch。
+6. 搭建本地 Docker Compose 基础设施，包括 PostgreSQL、Redis、RabbitMQ、MinIO 和 OpenSearch。
 7. 建立 Outbox/Inbox 可靠消息模板。
 8. 建立 `testing/contract` 契约测试基线。
 9. 建立 `testing/integration` 订单履约集成测试基线。
@@ -273,6 +275,8 @@ npm run build
 
 - [文档索引](docs/文档索引.md)
 - [项目架构设计](docs/项目架构设计.md)
+- [技术栈与中间件管理规范](docs/技术栈与中间件管理规范.md)
+- [项目里程碑与全流程待办清单](docs/项目里程碑与全流程待办清单.md)
 - [领域模型设计](docs/领域模型设计.md)
 - [微服务设计说明](docs/微服务设计说明.md)
 - [接口与事件设计](docs/接口与事件设计.md)
@@ -290,4 +294,3 @@ npm run build
 - 库存调整、财务冲销、权限变更、数据导出必须记录审计日志。
 - 所有服务必须接入结构化日志、指标和链路追踪。
 - 首次上线前必须完成备份恢复演练、死信补偿流程和权限渗透检查。
-
