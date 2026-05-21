@@ -79,6 +79,24 @@ const routes = [
         component: () => import("@/views/inventory/InventoryList.vue"),
         meta: { title: "库存管理", icon: "Box" },
       },
+      {
+        path: "warehouse/outbound",
+        name: "WarehouseOutbound",
+        component: () => import("@/views/warehouse/WarehouseOutbound.vue"),
+        meta: { title: "出库管理", icon: "House" },
+      },
+      {
+        path: "transport",
+        name: "TransportManagement",
+        component: () => import("@/views/transport/TransportManagement.vue"),
+        meta: { title: "物流管理", icon: "Van" },
+      },
+      {
+        path: "notification",
+        name: "NotificationCenter",
+        component: () => import("@/views/notification/NotificationCenter.vue"),
+        meta: { title: "通知中心", icon: "Bell" },
+      },
     ],
   },
 ];
