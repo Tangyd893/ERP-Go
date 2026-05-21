@@ -1,0 +1,20 @@
+{
+  "name": "erp-go",
+  "private": true,
+  "workspaces": [
+    "frontend/shared",
+    "frontend/admin-web",
+    "frontend/warehouse-pda",
+    "frontend/dashboard-web"
+  ],
+  "scripts": {
+    "dev:admin": "npm -w frontend/admin-web run dev",
+    "dev:pda": "npm -w frontend/warehouse-pda run dev",
+    "dev:dashboard": "npm -w frontend/dashboard-web run dev",
+    "build:admin": "npm -w frontend/admin-web run build",
+    "build:pda": "npm -w frontend/warehouse-pda run build",
+    "build:dashboard": "npm -w frontend/dashboard-web run build",
+    "lint": "npm -w frontend/admin-web run lint && npm -w frontend/warehouse-pda run lint && npm -w frontend/dashboard-web run lint",
+    "typecheck": "npm -w frontend/admin-web run typecheck && npm -w frontend/warehouse-pda run typecheck && npm -w frontend/dashboard-web run typecheck"
+  }
+}
