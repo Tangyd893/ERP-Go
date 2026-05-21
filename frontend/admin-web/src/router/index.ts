@@ -67,6 +67,18 @@ const routes = [
         component: () => import("@/views/channel/OrderImport.vue"),
         meta: { title: "订单导入", icon: "Upload" },
       },
+      {
+        path: "order/list",
+        name: "OrderList",
+        component: () => import("@/views/order/OrderList.vue"),
+        meta: { title: "订单列表", icon: "Tickets" },
+      },
+      {
+        path: "inventory",
+        name: "InventoryList",
+        component: () => import("@/views/inventory/InventoryList.vue"),
+        meta: { title: "库存管理", icon: "Box" },
+      },
     ],
   },
 ];
