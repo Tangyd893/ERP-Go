@@ -1,12 +1,35 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed, onMounted } from "vue";
+import { ProTable } from "@erp/shared";
+import { useChannelStore } from "@/stores/channel";
 
-const tableData = ref([
+const mockData = ref([
   { id: "1", import_type: "csv", store_name: "美国站店铺A", status: "completed", total_rows: 150, success_rows: 148, failed_rows: 2, created_at: "2026-05-21 10:00" },
   { id: "2", import_type: "api", store_name: "英国站店铺B", status: "processing", total_rows: 0, success_rows: 0, failed_rows: 0, created_at: "2026-05-21 11:00" },
 ]);
 
+const channelStore = useChannelStore();
+
+const displayData = computed(() =>
+  channelStore.importTasks.length > 0 ? channelStore.importTasks : mockData.value
+);
+
+const columns = [
+  { prop: "import_type", label: "导入方式", width: 100 },
+  { prop: "store_name", label: "店铺", width: 150 },
+  { prop: "status", label: "状态", width: 120 },
+  { prop: "total_rows", label: "总行数", width: 100, align: "right" as const },
+  { prop: "success_rows", label: "成功", width: 100, align: "right" as const },
+  { prop: "failed_rows", label: "失败", width: 100, align: "right" as const },
+  { prop: "created_at", label: "创建时间", width: 180 },
+  { prop: "actions", label: "操作", width: 160, fixed: "right" as const },
+];
+
 const uploadDialogVisible = ref(false);
+
+onMounted(() => {
+  channelStore.fetchImportTasks(1, 20);
+});
 </script>
 
 <template>
@@ -22,40 +45,33 @@ const uploadDialogVisible = ref(false);
         </div>
       </template>
 
-      <el-table :data="tableData" stripe>
-        <el-table-column prop="import_type" label="导入方式" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.import_type === 'csv' ? 'warning' : 'primary'" size="small">
-              {{ row.import_type.toUpperCase() }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="store_name" label="店铺" width="150" />
-        <el-table-column prop="status" label="状态" width="120">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 'completed' ? 'success' : 'warning'" size="small">
-              {{ row.status === 'completed' ? '已完成' : '处理中' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="total_rows" label="总行数" width="100" align="right" />
-        <el-table-column prop="success_rows" label="成功" width="100" align="right">
-          <template #default="{ row }">
-            <span style="color: #67C23A">{{ row.success_rows }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="failed_rows" label="失败" width="100" align="right">
-          <template #default="{ row }">
-            <span :style="{ color: row.failed_rows > 0 ? '#F56C6C' : '#909399' }">{{ row.failed_rows }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180" />
-        <el-table-column label="操作" width="160" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" size="small" :disabled="row.status !== 'completed'">查看结果</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <ProTable
+        :columns="columns"
+        :data="displayData"
+        :loading="channelStore.loading"
+        :total="displayData.length"
+        @page-change="(page: number) => channelStore.fetchImportTasks(page, 20)"
+      >
+        <template #import_type="{ row }">
+          <el-tag :type="row.import_type === 'csv' ? 'warning' : 'primary'" size="small">
+            {{ row.import_type.toUpperCase() }}
+          </el-tag>
+        </template>
+        <template #status="{ row }">
+          <el-tag :type="row.status === 'completed' ? 'success' : 'warning'" size="small">
+            {{ row.status === 'completed' ? '已完成' : '处理中' }}
+          </el-tag>
+        </template>
+        <template #success_rows="{ row }">
+          <span style="color: #67C23A">{{ row.success_rows }}</span>
+        </template>
+        <template #failed_rows="{ row }">
+          <span :style="{ color: row.failed_rows > 0 ? '#F56C6C' : '#909399' }">{{ row.failed_rows }}</span>
+        </template>
+        <template #actions="{ row }">
+          <el-button type="primary" size="small" :disabled="row.status !== 'completed'">查看结果</el-button>
+        </template>
+      </ProTable>
     </el-card>
 
     <el-dialog v-model="uploadDialogVisible" title="上传 CSV 订单导入" width="500px">

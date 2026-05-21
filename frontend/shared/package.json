@@ -14,7 +14,9 @@
   "dependencies": {
     "vue": "^3.4.0",
     "vue-router": "^4.4.0",
-    "pinia": "^2.1.0"
+    "pinia": "^2.1.0",
+    "axios": "^1.7.0",
+    "element-plus": "^2.7.0"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

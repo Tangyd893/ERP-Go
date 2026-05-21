@@ -1,30 +1,65 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
+import { ElMessage } from "element-plus";
+import { useRoleStore } from "@/stores/role";
+import { ProForm } from "@erp/shared";
 
-const tableData = ref([
-  { id: "1", name: "超级管理员", code: "super_admin", description: "系统超级管理员", status: "active", created_at: "2026-01-01" },
-  { id: "2", name: "运营专员", code: "operator", description: "负责订单和仓库日常操作", status: "active", created_at: "2026-01-15" },
-]);
+const roleStore = useRoleStore();
 
 const dialogVisible = ref(false);
-const formData = ref({ name: "", code: "", description: "" });
+const newRoleForm = ref({ name: "", code: "", description: "" });
 
-const openCreateDialog = () => {
-  formData.value = { name: "", code: "", description: "" };
+const formFields = [
+  { prop: "name", label: "角色名", type: "input" as const, placeholder: "请输入角色名称", required: true },
+  { prop: "code", label: "编码", type: "input" as const, placeholder: "请输入角色编码", required: true },
+  { prop: "description", label: "描述", type: "textarea" as const, placeholder: "请输入角色描述" },
+];
+
+const currentPage = ref(1);
+const pageSize = ref(20);
+
+onMounted(() => {
+  roleStore.fetchRoles(1, 20);
+});
+
+function openCreateDialog() {
+  newRoleForm.value = { name: "", code: "", description: "" };
   dialogVisible.value = true;
-};
+}
 
-const handleSave = () => {
-  dialogVisible.value = false;
-};
+async function handleCreateRole(data: Record<string, unknown>) {
+  try {
+    await roleStore.createRole(data);
+    ElMessage.success("角色创建成功");
+    dialogVisible.value = false;
+    roleStore.fetchRoles(currentPage.value, pageSize.value);
+  } catch {
+    ElMessage.error("创建角色失败");
+  }
+}
+
+function handlePageChange(page: number) {
+  currentPage.value = page;
+  roleStore.fetchRoles(page, pageSize.value);
+}
+
+async function handleDeleteRole(id: string) {
+  try {
+    await roleStore.deleteRole(id);
+    ElMessage.success("角色已删除");
+    roleStore.fetchRoles(currentPage.value, pageSize.value);
+  } catch {
+    ElMessage.error("删除角色失败");
+  }
+}
 
 const permDialogVisible = ref(false);
-const currentRole = ref<{ id: string; name: string } | null>(null);
+const currentRole = ref<{ role_id: string; name: string } | null>(null);
 
-const openPermDialog = (row: { id: string; name: string }) => {
+function openPermDialog(row: { role_id: string; name: string }) {
   currentRole.value = row;
   permDialogVisible.value = true;
-};
+}
 
 const allPermissions = ref([
   { code: "user:read", name: "查看用户", checked: true },
@@ -48,14 +83,14 @@ const allPermissions = ref([
         </div>
       </template>
 
-      <el-table :data="tableData" stripe>
+      <el-table :data="roleStore.roles" stripe v-loading="roleStore.loading">
         <el-table-column prop="name" label="角色名" width="150" />
         <el-table-column prop="code" label="角色编码" width="180" />
         <el-table-column prop="description" label="描述" min-width="200" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'active' ? 'success' : 'danger'" size="small">
-              {{ row.status === 'active' ? '启用' : '禁用' }}
+            <el-tag :type="row.status === 1 ? 'success' : 'danger'" size="small">
+              {{ row.status === 1 ? '启用' : '禁用' }}
             </el-tag>
           </template>
         </el-table-column>
@@ -64,29 +99,33 @@ const allPermissions = ref([
           <template #default="{ row }">
             <el-button type="primary" size="small" @click="openPermDialog(row)">分配权限</el-button>
             <el-button type="warning" size="small">编辑</el-button>
-            <el-button type="danger" size="small">删除</el-button>
+            <el-popconfirm title="确定要删除该角色吗？" @confirm="handleDeleteRole(row.role_id)">
+              <template #reference>
+                <el-button type="danger" size="small">删除</el-button>
+              </template>
+            </el-popconfirm>
           </template>
         </el-table-column>
       </el-table>
+
+      <el-pagination
+        style="margin-top: 16px; justify-content: flex-end"
+        background
+        layout="total, prev, pager, next"
+        :total="roleStore.total"
+        :page-size="pageSize"
+        :current-page="currentPage"
+        @current-change="handlePageChange"
+      />
     </el-card>
 
-    <el-dialog v-model="dialogVisible" title="新建角色" width="500px">
-      <el-form :model="formData" label-width="80px">
-        <el-form-item label="角色名" required>
-          <el-input v-model="formData.name" placeholder="请输入角色名称" />
-        </el-form-item>
-        <el-form-item label="编码" required>
-          <el-input v-model="formData.code" placeholder="请输入角色编码" />
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input v-model="formData.description" type="textarea" placeholder="请输入角色描述" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSave">确定</el-button>
-      </template>
-    </el-dialog>
+    <ProForm
+      v-model="dialogVisible"
+      title="新建角色"
+      :form-data="newRoleForm"
+      :fields="formFields"
+      @submit="handleCreateRole"
+    />
 
     <el-dialog v-model="permDialogVisible" title="分配权限" width="500px">
       <template v-if="currentRole">

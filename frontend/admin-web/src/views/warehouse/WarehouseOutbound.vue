@@ -1,10 +1,19 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { ProTable } from "@erp/shared";
 
 const outbounds = ref([
   { id: "1", order_no: "AMZ-20260521-001", status: "packed", items: 2, created_at: "2026-05-21 10:02" },
   { id: "2", order_no: "AMZ-20260520-004", status: "shipped", items: 1, created_at: "2026-05-20 16:30" },
 ]);
+
+const columns = [
+  { prop: "order_no", label: "关联订单", width: 200 },
+  { prop: "status", label: "出库状态", width: 130 },
+  { prop: "items", label: "商品数", width: 80 },
+  { prop: "created_at", label: "创建时间", width: 180 },
+  { prop: "actions", label: "操作", width: 200 },
+];
 
 const statusLabels: Record<string, { type: string; label: string }> = {
   created: { type: "info", label: "待波次" },
@@ -28,24 +37,21 @@ const statusLabels: Record<string, { type: string; label: string }> = {
           <el-button type="primary" size="small">创建波次</el-button>
         </div>
       </template>
-      <el-table :data="outbounds" stripe>
-        <el-table-column prop="order_no" label="关联订单" width="200" />
-        <el-table-column prop="status" label="出库状态" width="130">
-          <template #default="{ row }">
-            <el-tag :type="statusLabels[row.status]?.type || 'info'" size="small">
-              {{ statusLabels[row.status]?.label || row.status }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="items" label="商品数" width="80" />
-        <el-table-column prop="created_at" label="创建时间" width="180" />
-        <el-table-column label="操作" width="200">
-          <template #default="{ row }">
-            <el-button type="primary" size="small" :disabled="row.status === 'shipped'">处理</el-button>
-            <el-button type="danger" size="small" :disabled="row.status === 'shipped'">异常</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <ProTable
+        :columns="columns"
+        :data="outbounds"
+        :total="outbounds.length"
+      >
+        <template #status="{ row }">
+          <el-tag :type="statusLabels[row.status]?.type || 'info'" size="small">
+            {{ statusLabels[row.status]?.label || row.status }}
+          </el-tag>
+        </template>
+        <template #actions="{ row }">
+          <el-button type="primary" size="small" :disabled="row.status === 'shipped'">处理</el-button>
+          <el-button type="danger" size="small" :disabled="row.status === 'shipped'">异常</el-button>
+        </template>
+      </ProTable>
     </el-card>
     <el-row :gutter="16">
       <el-col :span="8">

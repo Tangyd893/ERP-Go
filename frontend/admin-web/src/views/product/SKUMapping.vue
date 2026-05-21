@@ -1,11 +1,30 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, computed, onMounted } from "vue";
+import { ProTable } from "@erp/shared";
+import { useProductStore } from "@/stores/product";
 
-const tableData = ref([
+const mockData = ref([
   { id: "1", sku_code: "TSHIRT-001", sku_name: "纯棉T恤-白色-M", platform_code: "amazon_us", platform_sku: "B0XXX001", asin: "B0XXX001", fnsku: "X001AAA", store: "美国站店铺A" },
   { id: "2", sku_code: "TSHIRT-002", sku_name: "纯棉T恤-黑色-L", platform_code: "amazon_us", platform_sku: "B0XXX002", asin: "B0XXX002", fnsku: "X002BBB", store: "美国站店铺A" },
   { id: "3", sku_code: "MUG-001", sku_name: "陶瓷马克杯-350ml", platform_code: "amazon_uk", platform_sku: "B0XXX003", asin: "B0XXX003", fnsku: "X003CCC", store: "英国站店铺B" },
 ]);
+
+const productStore = useProductStore();
+
+const displayData = computed(() =>
+  productStore.skuMappings.length > 0 ? productStore.skuMappings : mockData.value
+);
+
+const columns = [
+  { prop: "sku_code", label: "内部SKU", width: 140 },
+  { prop: "sku_name", label: "SKU名称", minWidth: 180 },
+  { prop: "store", label: "店铺", width: 150 },
+  { prop: "platform_code", label: "平台", width: 120 },
+  { prop: "platform_sku", label: "平台SKU", width: 140 },
+  { prop: "asin", label: "ASIN", width: 120 },
+  { prop: "fnsku", label: "FNSKU", width: 120 },
+  { prop: "actions", label: "操作", width: 160, fixed: "right" as const },
+];
 
 const dialogVisible = ref(false);
 const form = ref({ sku_id: "", store_id: "", platform_sku: "", asin: "", fnsku: "" });
@@ -14,6 +33,17 @@ const openCreateDialog = () => {
   form.value = { sku_id: "", store_id: "", platform_sku: "", asin: "", fnsku: "" };
   dialogVisible.value = true;
 };
+
+const handleSubmit = () => {
+  productStore.createSKUMapping(form.value).then(() => {
+    dialogVisible.value = false;
+    productStore.fetchSKUMappings();
+  });
+};
+
+onMounted(() => {
+  productStore.fetchSKUMappings();
+});
 </script>
 
 <template>
@@ -26,21 +56,18 @@ const openCreateDialog = () => {
         </div>
       </template>
 
-      <el-table :data="tableData" stripe>
-        <el-table-column prop="sku_code" label="内部SKU" width="140" />
-        <el-table-column prop="sku_name" label="SKU名称" min-width="180" />
-        <el-table-column prop="store" label="店铺" width="150" />
-        <el-table-column prop="platform_code" label="平台" width="120" />
-        <el-table-column prop="platform_sku" label="平台SKU" width="140" />
-        <el-table-column prop="asin" label="ASIN" width="120" />
-        <el-table-column prop="fnsku" label="FNSKU" width="120" />
-        <el-table-column label="操作" width="160" fixed="right">
-          <template #default>
-            <el-button type="primary" size="small">编辑</el-button>
-            <el-button type="danger" size="small">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <ProTable
+        :columns="columns"
+        :data="displayData"
+        :loading="productStore.loading"
+        :total="displayData.length"
+        @page-change="() => productStore.fetchSKUMappings()"
+      >
+        <template #actions>
+          <el-button type="primary" size="small">编辑</el-button>
+          <el-button type="danger" size="small">删除</el-button>
+        </template>
+      </ProTable>
     </el-card>
 
     <el-dialog v-model="dialogVisible" title="新建 SKU 映射" width="500px">
@@ -68,7 +95,7 @@ const openCreateDialog = () => {
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="dialogVisible = false">确定</el-button>
+        <el-button type="primary" @click="handleSubmit">确定</el-button>
       </template>
     </el-dialog>
   </div>

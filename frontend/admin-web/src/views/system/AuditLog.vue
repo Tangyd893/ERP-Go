@@ -1,11 +1,17 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
+import { useAuditStore } from "@/stores/audit";
 
-const tableData = ref([
-  { id: "1", username: "admin", action: "login", resource_type: "user", resource_id: "1", detail: "登录成功", ip: "192.168.1.1", created_at: "2026-05-21 10:30:00" },
-  { id: "2", username: "admin", action: "create", resource_type: "user", resource_id: "2", detail: "创建用户 operator", ip: "192.168.1.1", created_at: "2026-05-21 10:35:00" },
-  { id: "3", username: "operator", action: "login", resource_type: "user", resource_id: "2", detail: "登录成功", ip: "192.168.1.2", created_at: "2026-05-21 11:00:00" },
-]);
+const auditStore = useAuditStore();
+
+const searchForm = ref({
+  username: "",
+  action: "",
+  dateRange: null as [string, string] | null,
+});
+
+const currentPage = ref(1);
+const pageSize = ref(20);
 
 const actionLabels: Record<string, { type: string; label: string }> = {
   login: { type: "success", label: "登录" },
@@ -16,6 +22,40 @@ const actionLabels: Record<string, { type: string; label: string }> = {
   export: { type: "warning", label: "导出" },
   permission_change: { type: "danger", label: "权限变更" },
 };
+
+onMounted(() => {
+  auditStore.fetchLogs({ page: 1, page_size: 20 });
+});
+
+function handleSearch() {
+  currentPage.value = 1;
+  auditStore.fetchLogs({
+    page: 1,
+    page_size: pageSize.value,
+    username: searchForm.value.username || undefined,
+    action: searchForm.value.action || undefined,
+    start_date: searchForm.value.dateRange?.[0],
+    end_date: searchForm.value.dateRange?.[1],
+  });
+}
+
+function handleReset() {
+  searchForm.value = { username: "", action: "", dateRange: null };
+  currentPage.value = 1;
+  auditStore.fetchLogs({ page: 1, page_size: pageSize.value });
+}
+
+function handlePageChange(page: number) {
+  currentPage.value = page;
+  auditStore.fetchLogs({
+    page,
+    page_size: pageSize.value,
+    username: searchForm.value.username || undefined,
+    action: searchForm.value.action || undefined,
+    start_date: searchForm.value.dateRange?.[0],
+    end_date: searchForm.value.dateRange?.[1],
+  });
+}
 </script>
 
 <template>
@@ -27,10 +67,10 @@ const actionLabels: Record<string, { type: string; label: string }> = {
 
       <el-form inline>
         <el-form-item label="用户">
-          <el-input placeholder="搜索用户名" clearable style="width: 200px" />
+          <el-input v-model="searchForm.username" placeholder="搜索用户名" clearable style="width: 200px" />
         </el-form-item>
         <el-form-item label="操作类型">
-          <el-select placeholder="全部" clearable style="width: 150px">
+          <el-select v-model="searchForm.action" placeholder="全部" clearable style="width: 150px">
             <el-option label="登录" value="login" />
             <el-option label="登出" value="logout" />
             <el-option label="创建" value="create" />
@@ -41,15 +81,21 @@ const actionLabels: Record<string, { type: string; label: string }> = {
           </el-select>
         </el-form-item>
         <el-form-item label="时间范围">
-          <el-date-picker type="daterange" range-separator="至" start-placeholder="开始日期" end-placeholder="结束日期" />
+          <el-date-picker
+            v-model="searchForm.dateRange"
+            type="daterange"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+          />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary">查询</el-button>
-          <el-button>重置</el-button>
+          <el-button type="primary" @click="handleSearch">查询</el-button>
+          <el-button @click="handleReset">重置</el-button>
         </el-form-item>
       </el-form>
 
-      <el-table :data="tableData" stripe>
+      <el-table :data="auditStore.logs" stripe v-loading="auditStore.loading">
         <el-table-column prop="username" label="用户" width="120" />
         <el-table-column prop="action" label="操作" width="120">
           <template #default="{ row }">
@@ -71,8 +117,10 @@ const actionLabels: Record<string, { type: string; label: string }> = {
         style="margin-top: 16px; justify-content: flex-end"
         background
         layout="total, prev, pager, next"
-        :total="3"
-        :page-size="20"
+        :total="auditStore.total"
+        :page-size="pageSize"
+        :current-page="currentPage"
+        @current-change="handlePageChange"
       />
     </el-card>
   </div>

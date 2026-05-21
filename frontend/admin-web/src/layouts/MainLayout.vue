@@ -1,10 +1,17 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
 import { useRouter, useRoute } from "vue-router";
 
 const router = useRouter();
 const route = useRoute();
 const activeMenu = ref(route.path);
+
+watch(
+  () => route.path,
+  (newPath) => {
+    activeMenu.value = newPath;
+  }
+);
 
 const menuItems = [
   { path: "/dashboard", title: "首页", icon: "DataAnalysis" },
@@ -43,7 +50,23 @@ const menuItems = [
     ],
   },
   { path: "/inventory", title: "库存管理", icon: "Box" },
-  { path: "/warehouse", title: "仓储管理", icon: "House" },
+  { path: "/warehouse/outbound", title: "仓储管理", icon: "House" },
+  {
+    title: "物流管理",
+    icon: "Van",
+    children: [
+      { path: "/transport", title: "物流配置", icon: "Van" },
+    ],
+  },
+  { path: "/notification", title: "通知中心", icon: "Bell" },
+  {
+    title: "采购财务",
+    icon: "Money",
+    children: [
+      { path: "/purchase", title: "采购管理", icon: "ShoppingCart" },
+      { path: "/finance", title: "财务管理", icon: "Money" },
+    ],
+  },
 ];
 
 const handleMenuSelect = (index: string) => {

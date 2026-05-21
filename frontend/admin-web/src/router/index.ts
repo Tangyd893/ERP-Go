@@ -74,6 +74,12 @@ const routes = [
         meta: { title: "订单列表", icon: "Tickets" },
       },
       {
+        path: "order/audit",
+        name: "OrderAudit",
+        component: () => import("@/views/order/OrderAudit.vue"),
+        meta: { title: "订单审核", icon: "Checked" },
+      },
+      {
         path: "inventory",
         name: "InventoryList",
         component: () => import("@/views/inventory/InventoryList.vue"),
@@ -116,6 +122,15 @@ const routes = [
 const router = createRouter({
   history: createWebHistory(),
   routes,
+});
+
+router.beforeEach((to, _from, next) => {
+  const token = localStorage.getItem("access_token");
+  if (!token && to.path !== "/login") {
+    next("/login");
+  } else {
+    next();
+  }
 });
 
 export default router;

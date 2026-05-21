@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from "vue";
+import { ProTable } from "@erp/shared";
 
 const carriers = ref([
   { id: "1", name: "USPS", code: "usps", service: "Priority Mail", status: "active" },
@@ -10,6 +11,22 @@ const carriers = ref([
 const shipments = ref([
   { id: "1", tracking_no: "1Z999AA10123456784", carrier: "USPS", status: "shipped", order_no: "AMZ-20260520-004", weight: 0.5, created_at: "2026-05-20 17:00" },
 ]);
+
+const carrierColumns = [
+  { prop: "name", label: "物流商", width: 120 },
+  { prop: "code", label: "编码", width: 100 },
+  { prop: "service", label: "物流产品" },
+  { prop: "status", label: "状态", width: 100 },
+];
+
+const shipmentColumns = [
+  { prop: "tracking_no", label: "运单号", width: 200 },
+  { prop: "carrier", label: "物流商", width: 100 },
+  { prop: "order_no", label: "订单号", width: 200 },
+  { prop: "weight", label: "重量(kg)", width: 100 },
+  { prop: "status", label: "状态", width: 120 },
+  { prop: "created_at", label: "创建时间", width: 180 },
+];
 
 const statusLabels: Record<string, { type: string; label: string }> = {
   pending: { type: "info", label: "待获取面单" },
@@ -30,36 +47,34 @@ const statusLabels: Record<string, { type: string; label: string }> = {
           <el-button type="primary" size="small">添加物流商</el-button>
         </div>
       </template>
-      <el-table :data="carriers" stripe size="small">
-        <el-table-column prop="name" label="物流商" width="120" />
-        <el-table-column prop="code" label="编码" width="100" />
-        <el-table-column prop="service" label="物流产品" />
-        <el-table-column prop="status" label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 'active' ? 'success' : 'danger'" size="small">
-              {{ row.status === 'active' ? '启用' : '禁用' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-      </el-table>
+      <ProTable
+        :columns="carrierColumns"
+        :data="carriers"
+        :total="carriers.length"
+        :page-size="carriers.length"
+      >
+        <template #status="{ row }">
+          <el-tag :type="row.status === 'active' ? 'success' : 'danger'" size="small">
+            {{ row.status === 'active' ? '启用' : '禁用' }}
+          </el-tag>
+        </template>
+      </ProTable>
     </el-card>
 
     <el-card>
       <template #header><span>发运记录</span></template>
-      <el-table :data="shipments" stripe>
-        <el-table-column prop="tracking_no" label="运单号" width="200" />
-        <el-table-column prop="carrier" label="物流商" width="100" />
-        <el-table-column prop="order_no" label="订单号" width="200" />
-        <el-table-column prop="weight" label="重量(kg)" width="100" />
-        <el-table-column prop="status" label="状态" width="120">
-          <template #default="{ row }">
-            <el-tag :type="statusLabels[row.status]?.type || 'info'" size="small">
-              {{ statusLabels[row.status]?.label || row.status }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="180" />
-      </el-table>
+      <ProTable
+        :columns="shipmentColumns"
+        :data="shipments"
+        :total="shipments.length"
+        :page-size="shipments.length"
+      >
+        <template #status="{ row }">
+          <el-tag :type="statusLabels[row.status]?.type || 'info'" size="small">
+            {{ statusLabels[row.status]?.label || row.status }}
+          </el-tag>
+        </template>
+      </ProTable>
     </el-card>
   </div>
 </template>

@@ -1,31 +1,53 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
+import { ElMessage } from "element-plus";
+import { useUserStore } from "@/stores/user";
+import { ProForm } from "@erp/shared";
 
-const tableData = ref([
-  { id: "1", username: "admin", nickname: "系统管理员", email: "admin@erp.com", status: "active", created_at: "2026-01-01" },
-  { id: "2", username: "operator", nickname: "运营人员", email: "op@erp.com", status: "active", created_at: "2026-01-15" },
-]);
-
-const columns = [
-  { prop: "username", label: "用户名", width: 120 },
-  { prop: "nickname", label: "昵称", width: 140 },
-  { prop: "email", label: "邮箱", width: 200 },
-  { prop: "status", label: "状态", width: 100 },
-  { prop: "created_at", label: "创建时间", width: 160 },
-  { prop: "actions", label: "操作", fixed: "right" },
-];
+const userStore = useUserStore();
 
 const dialogVisible = ref(false);
-const formData = ref({ username: "", password: "", nickname: "", email: "", phone: "" });
+const newUserForm = ref({ username: "", password: "", nickname: "", email: "", phone: "" });
 
-const openCreateDialog = () => {
-  formData.value = { username: "", password: "", nickname: "", email: "", phone: "" };
+const formFields = [
+  { prop: "username", label: "用户名", type: "input" as const, placeholder: "请输入用户名", required: true },
+  { prop: "password", label: "密码", type: "input" as const, placeholder: "请输入密码", required: true },
+  { prop: "nickname", label: "昵称", type: "input" as const, placeholder: "请输入昵称" },
+  { prop: "email", label: "邮箱", type: "input" as const, placeholder: "请输入邮箱" },
+  { prop: "phone", label: "手机号", type: "input" as const, placeholder: "请输入手机号" },
+];
+
+const currentPage = ref(1);
+const pageSize = ref(20);
+
+onMounted(() => {
+  userStore.fetchUsers(1, 20);
+});
+
+function openCreateDialog() {
+  newUserForm.value = { username: "", password: "", nickname: "", email: "", phone: "" };
   dialogVisible.value = true;
-};
+}
 
-const handleSave = () => {
-  dialogVisible.value = false;
-};
+async function handleCreateUser(data: Record<string, unknown>) {
+  try {
+    await userStore.createUser(data);
+    ElMessage.success("用户创建成功");
+    dialogVisible.value = false;
+    userStore.fetchUsers(currentPage.value, pageSize.value);
+  } catch {
+    ElMessage.error("创建用户失败");
+  }
+}
+
+function handlePageChange(page: number) {
+  currentPage.value = page;
+  userStore.fetchUsers(page, pageSize.value);
+}
+
+function handleDeleteUser(userId: string) {
+  userStore.deleteUser(userId);
+}
 </script>
 
 <template>
@@ -38,23 +60,27 @@ const handleSave = () => {
         </div>
       </template>
 
-      <el-table :data="tableData" stripe>
+      <el-table :data="userStore.users" stripe v-loading="userStore.loading">
         <el-table-column prop="username" label="用户名" width="120" />
         <el-table-column prop="nickname" label="昵称" width="140" />
         <el-table-column prop="email" label="邮箱" width="200" />
         <el-table-column prop="status" label="状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'active' ? 'success' : 'danger'" size="small">
-              {{ row.status === 'active' ? '启用' : '禁用' }}
+            <el-tag :type="row.status === 1 ? 'success' : 'danger'" size="small">
+              {{ row.status === 1 ? '启用' : '禁用' }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="160" />
         <el-table-column label="操作" width="220" fixed="right">
-          <template #default>
+          <template #default="{ row }">
             <el-button type="primary" size="small">编辑</el-button>
             <el-button type="warning" size="small">分配角色</el-button>
-            <el-button type="danger" size="small">禁用</el-button>
+            <el-popconfirm title="确定要删除该用户吗？" @confirm="handleDeleteUser(row.user_id)">
+              <template #reference>
+                <el-button type="danger" size="small">删除</el-button>
+              </template>
+            </el-popconfirm>
           </template>
         </el-table-column>
       </el-table>
@@ -63,33 +89,19 @@ const handleSave = () => {
         style="margin-top: 16px; justify-content: flex-end"
         background
         layout="total, prev, pager, next"
-        :total="2"
-        :page-size="20"
+        :total="userStore.total"
+        :page-size="pageSize"
+        :current-page="currentPage"
+        @current-change="handlePageChange"
       />
     </el-card>
 
-    <el-dialog v-model="dialogVisible" title="新建用户" width="500px">
-      <el-form :model="formData" label-width="80px">
-        <el-form-item label="用户名" required>
-          <el-input v-model="formData.username" placeholder="请输入用户名" />
-        </el-form-item>
-        <el-form-item label="密码" required>
-          <el-input v-model="formData.password" type="password" placeholder="请输入密码" />
-        </el-form-item>
-        <el-form-item label="昵称">
-          <el-input v-model="formData.nickname" placeholder="请输入昵称" />
-        </el-form-item>
-        <el-form-item label="邮箱">
-          <el-input v-model="formData.email" placeholder="请输入邮箱" />
-        </el-form-item>
-        <el-form-item label="手机号">
-          <el-input v-model="formData.phone" placeholder="请输入手机号" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSave">确定</el-button>
-      </template>
-    </el-dialog>
+    <ProForm
+      v-model="dialogVisible"
+      title="新建用户"
+      :form-data="newUserForm"
+      :fields="formFields"
+      @submit="handleCreateUser"
+    />
   </div>
 </template>
