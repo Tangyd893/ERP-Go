@@ -1,0 +1,48 @@
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# 编辑器与本地配置
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 环境变量与密钥
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+
+# 日志
+*.log
+logs/
+
+# Go
+bin/
+coverage.out
+*.test
+
+# Node / 前端
+node_modules/
+dist/
+build/
+.next/
+.nuxt/
+coverage/
+
+# Docker / 临时数据
+docker/data/
+docker/tmp/
+
+# 测试产物
+testing/reports/
+testing/results/
+
+# 对象存储和导入导出临时文件
+uploads/
+exports/
+tmp/
+
