@@ -43,6 +43,30 @@ const routes = [
         component: () => import("@/views/system/AuditLog.vue"),
         meta: { title: "操作审计", icon: "DocumentChecked" },
       },
+      {
+        path: "product/list",
+        name: "ProductList",
+        component: () => import("@/views/product/ProductList.vue"),
+        meta: { title: "商品列表", icon: "List" },
+      },
+      {
+        path: "product/sku-mapping",
+        name: "SKUMapping",
+        component: () => import("@/views/product/SKUMapping.vue"),
+        meta: { title: "SKU 映射", icon: "Connection" },
+      },
+      {
+        path: "channel/stores",
+        name: "StoreManagement",
+        component: () => import("@/views/channel/StoreManagement.vue"),
+        meta: { title: "店铺授权", icon: "Shop" },
+      },
+      {
+        path: "channel/import",
+        name: "OrderImport",
+        component: () => import("@/views/channel/OrderImport.vue"),
+        meta: { title: "订单导入", icon: "Upload" },
+      },
     ],
   },
 ];

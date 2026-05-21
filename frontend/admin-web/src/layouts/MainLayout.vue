@@ -27,6 +27,14 @@ const menuItems = [
     ],
   },
   {
+    title: "渠道管理",
+    icon: "Connection",
+    children: [
+      { path: "/channel/stores", title: "店铺授权", icon: "Shop" },
+      { path: "/channel/import", title: "订单导入", icon: "Upload" },
+    ],
+  },
+  {
     title: "订单管理",
     icon: "Document",
     children: [
