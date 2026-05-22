@@ -16,7 +16,10 @@ import (
 	"github.com/Tangyd893/ERP-Go/backend/shared/logger"
 	"github.com/Tangyd893/ERP-Go/backend/shared/middleware"
 	"github.com/gin-gonic/gin"
+	"github.com/golang-jwt/jwt/v5"
 )
+
+var jwtSecret []byte
 
 func main() {
 	cfg, err := config.Load("")
@@ -31,6 +34,12 @@ func main() {
 		"api-gateway",
 		os.Getenv("ENVIRONMENT"),
 	)
+
+	jwtSecret = []byte(os.Getenv("JWT_SECRET"))
+	if len(jwtSecret) == 0 {
+		jwtSecret = []byte("erp-go-default-secret-change-in-production")
+		log.Warn("使用默认 JWT Secret，生产环境请设置 JWT_SECRET 环境变量")
+	}
 
 	if cfg.Server.Mode == "release" {
 		gin.SetMode(gin.ReleaseMode)
@@ -55,10 +64,8 @@ func main() {
 		})
 	})
 
-	// JWT 鉴权中间件（跳过公开路由）
 	engine.Use(authMiddleware(log))
 
-	// 注册代理路由
 	registerProxyRoutes(engine, log)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
@@ -90,11 +97,9 @@ func main() {
 	log.Info("网关已关闭")
 }
 
-// authMiddleware JWT 鉴权中间件，跳过公开路由
 func authMiddleware(log logger.Logger) gin.HandlerFunc {
-	// 不需要鉴权的公开路由
 	skipPaths := map[string]bool{
-		"/health":          true,
+		"/health":            true,
 		"/api/v1/iam/login":  true,
 		"/api/v1/iam/refresh": true,
 	}
@@ -107,7 +112,6 @@ func authMiddleware(log logger.Logger) gin.HandlerFunc {
 
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			log.Warnf("请求缺少认证令牌: %s %s", c.Request.Method, c.Request.URL.Path)
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
 				"code":    20000,
 				"message": "未提供认证令牌",
@@ -115,9 +119,53 @@ func authMiddleware(log logger.Logger) gin.HandlerFunc {
 			return
 		}
 
-		log.Debugf("认证通过，继续代理: %s %s", c.Request.Method, c.Request.URL.Path)
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+		claims, err := parseJWT(tokenString)
+		if err != nil {
+			log.Warnf("JWT 验证失败: %v, path=%s", err, c.Request.URL.Path)
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"code":    20002,
+				"message": "令牌无效或已过期",
+			})
+			return
+		}
+
+		c.Set("user_id", claims.UserID)
+		c.Set("tenant_id", claims.TenantID)
+		c.Set("username", claims.Username)
+
+		c.Request.Header.Set("X-User-ID", claims.UserID)
+		c.Request.Header.Set("X-Tenant-ID", claims.TenantID)
+		c.Request.Header.Set("X-Username", claims.Username)
+
 		c.Next()
 	}
+}
+
+type jwtClaims struct {
+	UserID   string   `json:"user_id"`
+	TenantID string   `json:"tenant_id"`
+	Username string   `json:"username"`
+	Roles    []string `json:"roles"`
+	Type     string   `json:"type"`
+	jwt.RegisteredClaims
+}
+
+func parseJWT(tokenString string) (*jwtClaims, error) {
+	token, err := jwt.ParseWithClaims(tokenString, &jwtClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("不支持的签名方法: %v", token.Header["alg"])
+		}
+		return jwtSecret, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	claims, ok := token.Claims.(*jwtClaims)
+	if !ok || !token.Valid {
+		return nil, fmt.Errorf("无效的令牌")
+	}
+	return claims, nil
 }
 
 func registerProxyRoutes(engine *gin.Engine, log logger.Logger) {
