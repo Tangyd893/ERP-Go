@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -15,6 +16,8 @@ import (
 	"github.com/Tangyd893/ERP-Go/backend/shared/config"
 	"github.com/Tangyd893/ERP-Go/backend/shared/logger"
 	"github.com/Tangyd893/ERP-Go/backend/shared/middleware"
+	"github.com/Tangyd893/ERP-Go/backend/shared/outbox"
+	"github.com/Tangyd893/ERP-Go/backend/shared/workflows"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -38,6 +41,35 @@ func main() {
 		db = database
 		orderRepo := repository.NewOrderRepository(db)
 		orderAppService = app.NewOrderAppService(orderRepo)
+
+		outboxStore := outbox.NewPGOutboxStore(db)
+		orderAppService.WithOutbox(outboxStore)
+
+		publisher := outbox.NewLogPublisher(log)
+		processor := outbox.NewOutboxProcessor(outboxStore, publisher, 10, 5*time.Second)
+
+		inventoryURL := os.Getenv("INVENTORY_SERVICE_URL")
+		if inventoryURL == "" {
+			inventoryURL = "http://localhost:8086"
+		}
+		warehouseURL := os.Getenv("WAREHOUSE_SERVICE_URL")
+		if warehouseURL == "" {
+			warehouseURL = "http://localhost:8087"
+		}
+
+		stockAdapter := workflows.NewHTTPStockLockAdapter(inventoryURL)
+		outboundAdapter := workflows.NewHTTPOutboundCreatorAdapter(warehouseURL)
+
+		coordinator := workflows.NewP4OutboundFlowCoordinator(outboxStore, outbox.NewPGInboxStore(db))
+		coordinator.SetStockHandler(stockAdapter)
+		coordinator.SetOutboundCreator(outboundAdapter)
+
+		processor.RegisterHandler(&orderApprovedHandler{coordinator: coordinator})
+		processor.RegisterHandler(&orderCancelledHandler{coordinator: coordinator})
+
+		ctx := context.Background()
+		go outbox.StartPolling(ctx, processor, log)
+		log.Info("Outbox 事件轮询已启动（订单审核→锁定库存→创建出库单）")
 	}
 
 	orderHandler := handler.NewOrderHandler(orderAppService)
@@ -74,7 +106,7 @@ func main() {
 	<-quit
 
 	log.Info("正在关闭 Order 服务...")
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	if db != nil {
@@ -82,8 +114,30 @@ func main() {
 			sqlDB.Close()
 		}
 	}
-	if err := srv.Shutdown(ctx); err != nil {
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Errorf("Order 服务关闭异常: %v", err)
 	}
 	log.Info("Order 服务已关闭")
+}
+
+// 事件处理器实现
+
+type orderApprovedHandler struct {
+	coordinator *workflows.P4OutboundFlowCoordinator
+}
+
+func (h *orderApprovedHandler) EventType() string { return "order.approved" }
+
+func (h *orderApprovedHandler) Handle(ctx context.Context, msg *outbox.OutboxMessage) error {
+	return h.coordinator.HandleOrderApproved(ctx, strconv.FormatInt(msg.ID, 10), msg.Payload)
+}
+
+type orderCancelledHandler struct {
+	coordinator *workflows.P4OutboundFlowCoordinator
+}
+
+func (h *orderCancelledHandler) EventType() string { return "order.cancelled" }
+
+func (h *orderCancelledHandler) Handle(ctx context.Context, msg *outbox.OutboxMessage) error {
+	return h.coordinator.HandleOrderCancelled(ctx, strconv.FormatInt(msg.ID, 10), msg.Payload)
 }
