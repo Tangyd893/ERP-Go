@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
-import apiClient from "@erp/shared";
+import { apiClient } from "@erp/shared";
 import type { ApiResponse, PageData } from "@erp/shared";
 
 interface Notification {

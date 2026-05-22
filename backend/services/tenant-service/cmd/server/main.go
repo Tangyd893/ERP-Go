@@ -9,7 +9,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Tangyd893/ERP-Go/backend/services/tenant-service/internal/app"
 	"github.com/Tangyd893/ERP-Go/backend/services/tenant-service/internal/infra/repository"
+	handler "github.com/Tangyd893/ERP-Go/backend/services/tenant-service/internal/interfaces/http"
 	"github.com/Tangyd893/ERP-Go/backend/shared/config"
 	"github.com/Tangyd893/ERP-Go/backend/shared/logger"
 	"github.com/Tangyd893/ERP-Go/backend/shared/middleware"
@@ -37,15 +39,19 @@ func main() {
 	)
 
 	var db *gorm.DB
+	var tenantAppService *app.TenantAppService
 	database, dbErr := repository.NewDB(cfg.Database)
 	if dbErr != nil {
 		log.Warnf("数据库连接失败，使用占位模式: %v", dbErr)
 	} else {
 		log.Info("数据库连接成功")
 		db = database
-		_ = repository.NewTenantRepository(db)
-		_ = repository.NewOrgRepository(db)
+		tenantRepo := repository.NewTenantRepository(db)
+		orgRepo := repository.NewOrgRepository(db)
+		tenantAppService = app.NewTenantAppService(tenantRepo, orgRepo)
 	}
+
+	tenantHandler := handler.NewTenantHandler(tenantAppService)
 
 	if cfg.Server.Mode == "release" {
 		gin.SetMode(gin.ReleaseMode)
@@ -75,13 +81,7 @@ func main() {
 		})
 	})
 
-	api := engine.Group("/api/v1/tenant")
-	{
-		api.GET("/tenants", notImpl("租户列表"))
-		api.GET("/organizations", notImpl("组织列表"))
-		api.GET("/departments", notImpl("部门列表"))
-		api.GET("/positions", notImpl("岗位列表"))
-	}
+	tenantHandler.RegisterRoutes(engine.Group("/api/v1/tenant"))
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{
@@ -116,13 +116,4 @@ func main() {
 		log.Errorf("Tenant 服务关闭异常: %v", err)
 	}
 	log.Info("Tenant 服务已关闭")
-}
-
-func notImpl(name string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"code":    0,
-			"message": name + "接口已规划，数据库迁移完成后可用",
-		})
-	}
 }

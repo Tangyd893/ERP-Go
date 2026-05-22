@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { ref } from "vue";
-import apiClient from "@erp/shared";
+import { apiClient } from "@erp/shared";
 import type { ApiResponse, UserInfo } from "@erp/shared";
 
 export const useAuthStore = defineStore("auth", () => {
