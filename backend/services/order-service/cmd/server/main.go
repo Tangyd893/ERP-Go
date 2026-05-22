@@ -1,23 +1,46 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
+	"github.com/Tangyd893/ERP-Go/backend/services/order-service/internal/app"
+	"github.com/Tangyd893/ERP-Go/backend/services/order-service/internal/infra/repository"
+	handler "github.com/Tangyd893/ERP-Go/backend/services/order-service/internal/interfaces/http"
 	"github.com/Tangyd893/ERP-Go/backend/shared/config"
 	"github.com/Tangyd893/ERP-Go/backend/shared/logger"
 	"github.com/Tangyd893/ERP-Go/backend/shared/middleware"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func main() {
 	cfg, _ := config.Load("")
 	cfg.Server.Name = "order-service"
-	cfg.Server.Port = 8085
+	if cfg.Server.Port == 0 || cfg.Server.Port == 8080 {
+		cfg.Server.Port = 8085
+	}
 
 	log := logger.New(cfg.Log.Level, cfg.Log.Format, cfg.Log.Output, cfg.Server.Name, os.Getenv("ENVIRONMENT"))
+
+	var db *gorm.DB
+	var orderAppService *app.OrderAppService
+	database, dbErr := repository.NewDB(cfg.Database)
+	if dbErr != nil {
+		log.Warnf("数据库连接失败，使用占位模式: %v", dbErr)
+	} else {
+		log.Info("数据库连接成功")
+		db = database
+		orderRepo := repository.NewOrderRepository(db)
+		orderAppService = app.NewOrderAppService(orderRepo)
+	}
+
+	orderHandler := handler.NewOrderHandler(orderAppService)
 
 	if cfg.Server.Mode == "release" {
 		gin.SetMode(gin.ReleaseMode)
@@ -27,29 +50,40 @@ func main() {
 	engine.Use(middleware.Recovery(log), middleware.RequestID(), middleware.TraceID(), middleware.TenantID(), middleware.CORS(), middleware.RequestLogger(log))
 
 	engine.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": cfg.Server.Name})
+		status := "ok"
+		if db == nil {
+			status = "degraded"
+		}
+		c.JSON(http.StatusOK, gin.H{"status": status, "service": cfg.Server.Name, "db": db != nil})
 	})
 
-	api := engine.Group("/api/v1/order")
-	{
-		api.GET("/orders", notImpl("订单列表"))
-		api.GET("/orders/:id", notImpl("订单详情"))
-		api.POST("/orders/audit", notImpl("审核订单"))
-		api.POST("/orders/abnormal", notImpl("标记异常"))
-		api.POST("/orders/cancel", notImpl("取消订单"))
-	}
-
-	log.Info("Order 服务启动")
+	orderHandler.RegisterRoutes(engine.Group("/api/v1/order"))
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{Addr: addr, Handler: engine, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second}
-	go func() { srv.ListenAndServe() }()
 
-	select {}
-}
+	go func() {
+		log.Infof("Order 服务启动在 %s", addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Order 服务启动失败: %v", err)
+		}
+	}()
 
-func notImpl(name string) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": name + "接口已规划"})
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Info("正在关闭 Order 服务...")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if db != nil {
+		if sqlDB, err := db.DB(); err == nil {
+			sqlDB.Close()
+		}
 	}
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Errorf("Order 服务关闭异常: %v", err)
+	}
+	log.Info("Order 服务已关闭")
 }
