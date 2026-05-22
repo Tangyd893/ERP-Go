@@ -10,19 +10,19 @@ docker-down: ## 停止所有开发中间件
 	cd docker/compose && docker compose -f docker-compose.dev.yml down
 
 build: ## 编译所有 Go 服务
-	export GOCACHE=/tmp/opencode/go-cache && cd backend && go build ./...
+	mkdir -p /tmp/opencode/go-cache && GOCACHE=/tmp/opencode/go-cache go build -C backend ./...
 
 build-all: build frontend-build ## 编译后端+前端
 
 test: ## 运行所有单元测试
-	cd backend && go test ./... -v -count=1
+	mkdir -p /tmp/opencode/go-cache && GOCACHE=/tmp/opencode/go-cache go test -C backend ./... -v -count=1
 
 test-cover: ## 运行测试并生成覆盖率报告
-	cd backend && go test ./... -coverprofile=../coverage.out -covermode=atomic
-	go tool cover -html=coverage.out -o coverage.html
+	mkdir -p /tmp/opencode/go-cache && GOCACHE=/tmp/opencode/go-cache go test -C backend ./... -coverprofile=../coverage.out -covermode=atomic
+	GOCACHE=/tmp/opencode/go-cache go tool cover -html=coverage.out -o coverage.html
 
 lint: ## 代码检查 (go vet)
-	cd backend && go vet ./...
+	mkdir -p /tmp/opencode/go-cache && GOCACHE=/tmp/opencode/go-cache go vet -C backend ./...
 
 clean: ## 清理构建产物
 	rm -f coverage.out coverage.html

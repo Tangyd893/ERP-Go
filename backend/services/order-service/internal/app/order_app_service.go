@@ -6,18 +6,25 @@ import (
 	"time"
 
 	"github.com/Tangyd893/ERP-Go/backend/services/order-service/internal/domain"
-	"github.com/Tangyd893/ERP-Go/backend/services/order-service/internal/infra/repository"
 	sharedEvents "github.com/Tangyd893/ERP-Go/backend/shared/events"
 	"github.com/Tangyd893/ERP-Go/backend/shared/outbox"
 )
 
+// orderRepo 订单仓储接口
+type orderRepo interface {
+	Create(ctx context.Context, order *domain.SalesOrder) error
+	FindByID(ctx context.Context, id string) (*domain.SalesOrder, error)
+	UpdateStatus(ctx context.Context, id string, status string) error
+	List(ctx context.Context, tenantID string, offset, limit int) ([]*domain.SalesOrder, int64, error)
+}
+
 // OrderAppService 订单应用服务
 type OrderAppService struct {
-	repo   *repository.OrderRepository
+	repo   orderRepo
 	outbox outbox.OutboxStore
 }
 
-func NewOrderAppService(repo *repository.OrderRepository) *OrderAppService {
+func NewOrderAppService(repo orderRepo) *OrderAppService {
 	return &OrderAppService{repo: repo}
 }
 
@@ -39,7 +46,7 @@ func (s *OrderAppService) CreateOrder(ctx context.Context, order *domain.SalesOr
 	if err := s.repo.Create(ctx, order); err != nil {
 		return err
 	}
-	s.emitEvent(ctx, order.TenantID, order.ID, "SalesOrder", sharedEvents.EventOrderImported, order)
+	s.emitEvent(ctx, order.ID, order.TenantID, "SalesOrder", sharedEvents.EventOrderImported, order)
 	return nil
 }
 
@@ -54,7 +61,7 @@ func (s *OrderAppService) ApproveOrder(ctx context.Context, id, operator string)
 	if err := s.repo.UpdateStatus(ctx, id, string(order.Status)); err != nil {
 		return err
 	}
-	s.emitEvent(ctx, order.TenantID, order.ID, "SalesOrder", sharedEvents.EventOrderApproved, order)
+	s.emitEvent(ctx, order.ID, order.TenantID, "SalesOrder", sharedEvents.EventOrderApproved, order)
 	return nil
 }
 
@@ -69,7 +76,7 @@ func (s *OrderAppService) CancelOrder(ctx context.Context, id, operator, reason 
 	if err := s.repo.UpdateStatus(ctx, id, string(order.Status)); err != nil {
 		return err
 	}
-	s.emitEvent(ctx, order.TenantID, order.ID, "SalesOrder", sharedEvents.EventOrderCancelled, order)
+	s.emitEvent(ctx, order.ID, order.TenantID, "SalesOrder", sharedEvents.EventOrderCancelled, order)
 	return nil
 }
 
@@ -84,7 +91,7 @@ func (s *OrderAppService) MarkAbnormal(ctx context.Context, id, operator, reason
 	if err := s.repo.UpdateStatus(ctx, id, string(order.Status)); err != nil {
 		return err
 	}
-	s.emitEvent(ctx, order.TenantID, order.ID, "SalesOrder", sharedEvents.EventOrderAbnormal, order)
+	s.emitEvent(ctx, order.ID, order.TenantID, "SalesOrder", sharedEvents.EventOrderAbnormal, order)
 	return nil
 }
 

@@ -1,7 +1,6 @@
 package http
 
 import (
-	"context"
 	"net/http"
 	"strconv"
 	"sync"
@@ -155,7 +154,7 @@ func (h *InventoryHandler) lockInventory(c *gin.Context) {
 		CreatedAt:      time.Now(),
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	if err := h.repo.LockStock(ctx, lock, journal); err != nil {
 		if bizErr, ok := err.(*sharedErrors.BusinessError); ok {
 			response.BusinessError(c, bizErr)
@@ -218,7 +217,7 @@ func (h *InventoryHandler) releaseInventory(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	if err := h.repo.ReleaseStock(ctx, req.LockKey, req.Quantity); err != nil {
 		if bizErr, ok := err.(*sharedErrors.BusinessError); ok {
 			response.BusinessError(c, bizErr)
@@ -265,7 +264,7 @@ func (h *InventoryHandler) deductInventory(c *gin.Context) {
 		return
 	}
 
-	ctx := context.Background()
+	ctx := c.Request.Context()
 	if err := h.repo.DeductStock(ctx, req.LockKey); err != nil {
 		if bizErr, ok := err.(*sharedErrors.BusinessError); ok {
 			response.BusinessError(c, bizErr)

@@ -3,6 +3,7 @@ package workflows
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -12,7 +13,10 @@ import (
 
 // mockStockHandler 测试用库存锁定处理器
 type mockStockHandler struct {
-	locked map[string][]string
+	locked      map[string][]string
+	shouldFail  bool
+	shouldFailOnCall int
+	callCount   int
 }
 
 func newMockStockHandler() *mockStockHandler {
@@ -20,6 +24,10 @@ func newMockStockHandler() *mockStockHandler {
 }
 
 func (h *mockStockHandler) LockStock(ctx context.Context, orderID, warehouseID string, skuQtys map[string]int) ([]string, error) {
+	h.callCount++
+	if h.shouldFail || (h.shouldFailOnCall > 0 && h.callCount == h.shouldFailOnCall) {
+		return nil, fmt.Errorf("库存不足: 订单=%s", orderID)
+	}
 	keys := make([]string, 0)
 	for sku, qty := range skuQtys {
 		_ = qty
@@ -32,7 +40,8 @@ func (h *mockStockHandler) LockStock(ctx context.Context, orderID, warehouseID s
 
 // mockOutboundCreator 测试用出库单创建处理器
 type mockOutboundCreator struct {
-	outbounds map[string]string
+	outbounds  map[string]string
+	shouldFail bool
 }
 
 func newMockOutboundCreator() *mockOutboundCreator {
@@ -40,6 +49,9 @@ func newMockOutboundCreator() *mockOutboundCreator {
 }
 
 func (h *mockOutboundCreator) CreateOutbound(ctx context.Context, tenantID, orderID, orderNo, warehouseID string, items []OrderItemData) (string, error) {
+	if h.shouldFail {
+		return "", fmt.Errorf("创建出库单失败: 仓库 %s 无可用人员", warehouseID)
+	}
 	id := "OB-" + orderID
 	h.outbounds[orderID] = id
 	return id, nil
@@ -226,4 +238,142 @@ func TestMemInboxStore(t *testing.T) {
 	if !dup {
 		t.Error("已保存的消息应标记为重复")
 	}
+}
+
+// TestP4HandleOrderApprovedInsufficientStock 验证库存不足时锁库失败，不创建出库单
+func TestP4HandleOrderApprovedInsufficientStock(t *testing.T) {
+	store := outbox.NewMemOutboxStore()
+	inbox := outbox.NewMemInboxStore()
+	coordinator := NewP4OutboundFlowCoordinator(store, inbox)
+
+	stockHandler := newMockStockHandler()
+	stockHandler.shouldFail = true
+	coordinator.SetStockHandler(stockHandler)
+	coordinator.SetOutboundCreator(newMockOutboundCreator())
+
+	data := OrderApprovedData{
+		OrderID:     "order-100",
+		TenantID:    "t-001",
+		OrderNo:     "AMZ-INSUF-001",
+		WarehouseID: "wh-001",
+		Items: []OrderItemData{
+			{SKUID: "sku-999", SKUCode: "OUTOFSTOCK", SKUName: "缺货SKU", Qty: 1000},
+		},
+	}
+	payload, _ := outbox.NewEventPayload(events.EventOrderApproved, data)
+
+	err := coordinator.HandleOrderApproved(context.Background(), "msg-100", payload)
+	if err == nil {
+		t.Error("库存不足时应返回错误")
+	}
+
+	pending, _ := store.FetchPending(context.Background(), 10)
+	if len(pending) > 0 {
+		t.Errorf("库存不足时不应产生后续事件，实际有 %d 条", len(pending))
+	}
+
+	dup, _ := inbox.IsDuplicate(context.Background(), "msg-100")
+	if dup {
+		t.Error("库存不足时不应写入 inbox（未成功处理）")
+	}
+}
+
+// TestP4HandleOrderApprovedDuplicateEvent 验证同一事件重复投递时幂等处理
+func TestP4HandleOrderApprovedDuplicateEvent(t *testing.T) {
+	store := outbox.NewMemOutboxStore()
+	inbox := outbox.NewMemInboxStore()
+	coordinator := NewP4OutboundFlowCoordinator(store, inbox)
+	coordinator.SetStockHandler(newMockStockHandler())
+	coordinator.SetOutboundCreator(newMockOutboundCreator())
+
+	data := OrderApprovedData{
+		OrderID:     "order-200",
+		TenantID:    "t-001",
+		OrderNo:     "AMZ-DUP-001",
+		WarehouseID: "wh-001",
+		Items: []OrderItemData{
+			{SKUID: "sku-001", SKUCode: "TSHIRT-001", SKUName: "T恤", Qty: 1},
+		},
+	}
+	payload, _ := outbox.NewEventPayload(events.EventOrderApproved, data)
+
+	if err := coordinator.HandleOrderApproved(context.Background(), "msg-200", payload); err != nil {
+		t.Fatalf("首次处理失败: %v", err)
+	}
+
+	pending1, _ := store.FetchPending(context.Background(), 10)
+	count1 := countOutboxByType(pending1, events.EventStockLocked)
+
+	// 重复投递同一消息（相同 messageID）
+	if err := coordinator.HandleOrderApproved(context.Background(), "msg-200", payload); err != nil {
+		t.Fatalf("重复处理应幂等返回: %v", err)
+	}
+
+	pending2, _ := store.FetchPending(context.Background(), 10)
+	count2 := countOutboxByType(pending2, events.EventStockLocked)
+
+	if count2 != count1 {
+		t.Errorf("重复事件不应产生新的库存锁定事件: 首次=%d, 重复后=%d", count1, count2)
+	}
+}
+
+// TestP4HandleOrderApprovedOutboundFailed 验证出库单创建失败时不写 inbox
+func TestP4HandleOrderApprovedOutboundFailed(t *testing.T) {
+	store := outbox.NewMemOutboxStore()
+	inbox := outbox.NewMemInboxStore()
+	coordinator := NewP4OutboundFlowCoordinator(store, inbox)
+	coordinator.SetStockHandler(newMockStockHandler())
+
+	creator := newMockOutboundCreator()
+	creator.shouldFail = true
+	coordinator.SetOutboundCreator(creator)
+
+	data := OrderApprovedData{
+		OrderID:     "order-300",
+		TenantID:    "t-001",
+		OrderNo:     "AMZ-OBFAIL-001",
+		WarehouseID: "wh-001",
+		Items: []OrderItemData{
+			{SKUID: "sku-001", SKUCode: "TSHIRT-001", SKUName: "T恤", Qty: 1},
+		},
+	}
+	payload, _ := outbox.NewEventPayload(events.EventOrderApproved, data)
+
+	err := coordinator.HandleOrderApproved(context.Background(), "msg-300", payload)
+	if err == nil {
+		t.Error("出库单创建失败时应返回错误")
+	}
+
+	pending, _ := store.FetchPending(context.Background(), 10)
+	foundLock := false
+	foundOutbound := false
+	for _, msg := range pending {
+		if msg.EventType == events.EventStockLocked {
+			foundLock = true
+		}
+		if msg.EventType == events.EventOutboundCreated {
+			foundOutbound = true
+		}
+	}
+	if !foundLock {
+		t.Error("库存锁定应已执行，应产生 inventory.locked 事件")
+	}
+	if foundOutbound {
+		t.Error("出库单创建失败时不应产生 outbound.created 事件")
+	}
+
+	dup, _ := inbox.IsDuplicate(context.Background(), "msg-300")
+	if dup {
+		t.Error("出库单创建失败时不应写入 inbox（待重试）")
+	}
+}
+
+func countOutboxByType(msgs []*outbox.OutboxMessage, eventType string) int {
+	n := 0
+	for _, m := range msgs {
+		if m.EventType == eventType {
+			n++
+		}
+	}
+	return n
 }
