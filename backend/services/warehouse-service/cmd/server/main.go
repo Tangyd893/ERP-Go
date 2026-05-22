@@ -1,50 +1,67 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
+	"github.com/Tangyd893/ERP-Go/backend/services/warehouse-service/internal/app"
+	"github.com/Tangyd893/ERP-Go/backend/services/warehouse-service/internal/infra/repository"
+	handler "github.com/Tangyd893/ERP-Go/backend/services/warehouse-service/internal/interfaces/http"
 	"github.com/Tangyd893/ERP-Go/backend/shared/config"
 	"github.com/Tangyd893/ERP-Go/backend/shared/logger"
 	"github.com/Tangyd893/ERP-Go/backend/shared/middleware"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func main() {
 	cfg, _ := config.Load("")
 	cfg.Server.Name = "warehouse-service"
-	cfg.Server.Port = 8087
+	if cfg.Server.Port == 0 || cfg.Server.Port == 8080 { cfg.Server.Port = 8087 }
 	log := logger.New(cfg.Log.Level, cfg.Log.Format, cfg.Log.Output, cfg.Server.Name, os.Getenv("ENVIRONMENT"))
+
+	var db *gorm.DB
+	var appService *app.WarehouseAppService
+	database, dbErr := repository.NewDB(cfg.Database)
+	if dbErr != nil {
+		log.Warnf("数据库连接失败，使用占位模式: %v", dbErr)
+	} else {
+		log.Info("数据库连接成功")
+		db = database
+		appService = app.NewWarehouseAppService(repository.NewWarehouseRepository(db))
+	}
+	wh := handler.NewWarehouseHandler(appService)
 
 	if cfg.Server.Mode == "release" { gin.SetMode(gin.ReleaseMode) }
 	engine := gin.New()
 	engine.Use(middleware.Recovery(log), middleware.RequestID(), middleware.TraceID(), middleware.TenantID(), middleware.CORS(), middleware.RequestLogger(log))
-
 	engine.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok", "service": cfg.Server.Name})
+		status := "ok"
+		if db == nil { status = "degraded" }
+		c.JSON(http.StatusOK, gin.H{"status": status, "service": cfg.Server.Name, "db": db != nil})
 	})
+	wh.RegisterRoutes(engine.Group("/api/v1/warehouse"))
 
-	api := engine.Group("/api/v1/warehouse")
-	{
-		api.GET("/outbounds", notImpl("出库单列表"))
-		api.POST("/outbounds", notImpl("创建出库单"))
-		api.GET("/pick-tasks", notImpl("拣货任务"))
-		api.POST("/pick/scan", notImpl("拣货扫码"))
-		api.POST("/check/scan", notImpl("复核扫码"))
-		api.POST("/package", notImpl("打包"))
-		api.POST("/weigh", notImpl("称重"))
-		api.GET("/locations", notImpl("库位列表"))
-	}
-
-	log.Info("WMS 仓储服务启动")
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{Addr: addr, Handler: engine, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second}
-	go func() { srv.ListenAndServe() }()
-	select {}
-}
-
-func notImpl(name string) gin.HandlerFunc {
-	return func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"code": 0, "message": name + "接口已规划"}) }
+	go func() {
+		log.Infof("WMS 仓储服务启动在 %s", addr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("WMS 仓储服务启动失败: %v", err)
+		}
+	}()
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+	log.Info("正在关闭 WMS 仓储服务...")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if db != nil { if sqlDB, _ := db.DB(); sqlDB != nil { sqlDB.Close() } }
+	if err := srv.Shutdown(ctx); err != nil { log.Errorf("WMS 仓储服务关闭异常: %v", err) }
+	log.Info("WMS 仓储服务已关闭")
 }
