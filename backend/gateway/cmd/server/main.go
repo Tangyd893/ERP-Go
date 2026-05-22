@@ -122,15 +122,19 @@ func authMiddleware(log logger.Logger) gin.HandlerFunc {
 
 func registerProxyRoutes(engine *gin.Engine, log logger.Logger) {
 	defaultRoutes := map[string]string{
-		"/api/v1/iam/":       "http://localhost:8081",
-		"/api/v1/tenant/":    "http://localhost:8082",
-		"/api/v1/product/":   "http://localhost:8083",
-		"/api/v1/channel/":   "http://localhost:8084",
-		"/api/v1/order/":     "http://localhost:8085",
-		"/api/v1/inventory/": "http://localhost:8086",
-		"/api/v1/warehouse/": "http://localhost:8087",
-		"/api/v1/transport/": "http://localhost:8088",
-		"/api/v1/file/":      "http://localhost:8089",
+		"/api/v1/iam/":          "http://localhost:8081",
+		"/api/v1/tenant/":       "http://localhost:8082",
+		"/api/v1/product/":      "http://localhost:8083",
+		"/api/v1/channel/":      "http://localhost:8084",
+		"/api/v1/order/":        "http://localhost:8085",
+		"/api/v1/inventory/":    "http://localhost:8086",
+		"/api/v1/warehouse/":    "http://localhost:8087",
+		"/api/v1/transport/":    "http://localhost:8088",
+		"/api/v1/file/":         "http://localhost:8089",
+		"/api/v1/purchase/":     "http://localhost:8091",
+		"/api/v1/finance/":      "http://localhost:8092",
+		"/api/v1/report/":       "http://localhost:8093",
+		"/api/v1/notification/": "http://localhost:8094",
 	}
 
 	for path, target := range defaultRoutes {
