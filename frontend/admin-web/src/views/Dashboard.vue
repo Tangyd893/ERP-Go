@@ -1,4 +1,29 @@
 <script setup lang="ts">
+import { onMounted, computed } from "vue";
+import { useOrderStore } from "@/stores/order";
+import { useInventoryStore } from "@/stores/inventory";
+import { useWarehouseStore } from "@/stores/warehouse";
+
+const orderStore = useOrderStore();
+const inventoryStore = useInventoryStore();
+const warehouseStore = useWarehouseStore();
+
+onMounted(() => {
+  orderStore.fetchOrders();
+  inventoryStore.fetchBalances();
+  warehouseStore.fetchOutbounds();
+});
+
+const todayOrders = computed(() => orderStore.total);
+const pendingAudit = computed(() =>
+  (Array.isArray(orderStore.orders) ? orderStore.orders : [])
+    .filter((o: any) => o.status === "pending").length
+);
+const pendingOutbound = computed(() => warehouseStore.total);
+const alertCount = computed(() =>
+  (Array.isArray(inventoryStore.balances) ? inventoryStore.balances : [])
+    .filter((b: any) => (b.quantity ?? 0) < (b.alert_threshold ?? 10)).length
+);
 </script>
 
 <template>
@@ -7,25 +32,25 @@
       <el-col :span="6">
         <el-card shadow="hover">
           <template #header>今日订单</template>
-          <div style="font-size: 32px; font-weight: bold; color: #409EFF">128</div>
+          <div style="font-size: 32px; font-weight: bold; color: #409EFF">{{ todayOrders }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="hover">
           <template #header>待审核</template>
-          <div style="font-size: 32px; font-weight: bold; color: #E6A23C">35</div>
+          <div style="font-size: 32px; font-weight: bold; color: #E6A23C">{{ pendingAudit }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="hover">
           <template #header>待出库</template>
-          <div style="font-size: 32px; font-weight: bold; color: #67C23A">52</div>
+          <div style="font-size: 32px; font-weight: bold; color: #67C23A">{{ pendingOutbound }}</div>
         </el-card>
       </el-col>
       <el-col :span="6">
         <el-card shadow="hover">
           <template #header>库存告警</template>
-          <div style="font-size: 32px; font-weight: bold; color: #F56C6C">8</div>
+          <div style="font-size: 32px; font-weight: bold; color: #F56C6C">{{ alertCount }}</div>
         </el-card>
       </el-col>
     </el-row>

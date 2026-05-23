@@ -2,7 +2,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/Tangyd893/ERP-Go/backend/services/order-service/internal/domain"
@@ -95,7 +94,7 @@ func (s *OrderAppService) MarkAbnormal(ctx context.Context, id, operator, reason
 	return nil
 }
 
-func (s *OrderAppService) emitEvent(ctx context.Context, aggregateID, _ /*tenantID*/, aggregateType, eventType string, data interface{}) {
+func (s *OrderAppService) emitEvent(ctx context.Context, aggregateID, tenantID, aggregateType, eventType string, data interface{}) {
 	if s.outbox == nil {
 		return
 	}
@@ -104,8 +103,9 @@ func (s *OrderAppService) emitEvent(ctx context.Context, aggregateID, _ /*tenant
 		return
 	}
 	_ = s.outbox.Save(ctx, &outbox.OutboxMessage{
-		AggregateID:   fmt.Sprintf("%v", aggregateID),
+		AggregateID:   aggregateID,
 		AggregateType: aggregateType,
+		TenantID:      tenantID,
 		EventType:     eventType,
 		Payload:       payload,
 		Status:        outbox.StatusPending,

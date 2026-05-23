@@ -1,7 +1,27 @@
 .PHONY: help dev build build-all test test-cover lint clean frontend-dev frontend-build frontend-typecheck all
 
+CACHE_DIR := $(shell pwd)/.cache
+GO_CACHE := $(CACHE_DIR)/go-build
+GO_MOD_CACHE := $(CACHE_DIR)/go-mod
+
 help: ## 显示帮助信息
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-24s\033[0m %s\n", $$1, $$2}'
+	@echo "开发规范:"
+	@echo "  make dev                  启动所有开发中间件"
+	@echo "  make build                编译所有 Go 服务"
+	@echo "  make test                 运行所有单元测试"
+	@echo "  make lint                 代码检查 (go vet)"
+	@echo "  make frontend-build       编译所有前端应用"
+	@echo "  make frontend-typecheck   前端类型检查"
+	@echo "  make frontend-dev         启动 admin-web 开发服务"
+	@echo "  make build-all            编译后端+前端"
+	@echo "  make test-cover           运行测试并生成覆盖率报告"
+	@echo "  make clean                清理构建产物"
+	@echo "  make all                  编译并测试"
+	@echo "  make run-gateway          启动 API 网关 (port 8080)"
+	@echo "  make run-iam              启动 IAM 服务 (port 8081)"
+	@echo "  make run-order            启动 Order 服务 (port 8085)"
+	@echo "  make run-inventory        启动 Inventory 服务 (port 8086)"
+	@echo "  make run-warehouse        启动 Warehouse 服务 (port 8087)"
 
 dev: ## 启动所有开发中间件 (PostgreSQL/Redis/RabbitMQ/MinIO等)
 	cd docker/compose && docker compose -f docker-compose.dev.yml up -d
@@ -10,19 +30,19 @@ docker-down: ## 停止所有开发中间件
 	cd docker/compose && docker compose -f docker-compose.dev.yml down
 
 build: ## 编译所有 Go 服务
-	mkdir -p /tmp/opencode/go-cache && GOCACHE=/tmp/opencode/go-cache go build -C backend ./...
+	mkdir -p $(GO_CACHE) $(GO_MOD_CACHE) && GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go build -C backend ./...
 
 build-all: build frontend-build ## 编译后端+前端
 
 test: ## 运行所有单元测试
-	mkdir -p /tmp/opencode/go-cache && GOCACHE=/tmp/opencode/go-cache go test -C backend ./... -v -count=1
+	mkdir -p $(GO_CACHE) $(GO_MOD_CACHE) && GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go test -C backend ./... -v -count=1
 
 test-cover: ## 运行测试并生成覆盖率报告
-	mkdir -p /tmp/opencode/go-cache && GOCACHE=/tmp/opencode/go-cache go test -C backend ./... -coverprofile=../coverage.out -covermode=atomic
-	GOCACHE=/tmp/opencode/go-cache go tool cover -html=coverage.out -o coverage.html
+	mkdir -p $(GO_CACHE) $(GO_MOD_CACHE) && GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go test -C backend ./... -coverprofile=../coverage.out -covermode=atomic
+	GOCACHE=$(GO_CACHE) go tool cover -html=coverage.out -o coverage.html
 
 lint: ## 代码检查 (go vet)
-	mkdir -p /tmp/opencode/go-cache && GOCACHE=/tmp/opencode/go-cache go vet -C backend ./...
+	mkdir -p $(GO_CACHE) $(GO_MOD_CACHE) && GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go vet -C backend ./...
 
 clean: ## 清理构建产物
 	rm -f coverage.out coverage.html

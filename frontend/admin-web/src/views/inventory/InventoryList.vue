@@ -1,29 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { computed, onMounted } from "vue";
 import { ProTable } from "@erp/shared";
 import { useInventoryStore } from "@/stores/inventory";
 
-const mockBalances = ref([
-  { sku_id: "sku-001", sku_code: "TSHIRT-001", sku_name: "纯棉T恤-白色-M", warehouse_name: "美国仓A", qty: 500, locked_qty: 75, available_qty: 425 },
-  { sku_id: "sku-002", sku_code: "MUG-001", sku_name: "陶瓷马克杯-350ml", warehouse_name: "美国仓A", qty: 300, locked_qty: 20, available_qty: 280 },
-  { sku_id: "sku-003", sku_code: "TSHIRT-002", sku_name: "纯棉T恤-黑色-L", warehouse_name: "美国仓A", qty: 200, locked_qty: 0, available_qty: 200 },
-]);
-
-const mockJournals = ref([
-  { id: "1", sku_code: "TSHIRT-001", change_type: "lock", change_qty: 10, before_total: 500, after_total: 500, before_avail: 500, after_avail: 490, created_at: "2026-05-21 10:01" },
-  { id: "2", sku_code: "TSHIRT-001", change_type: "lock", change_qty: 15, before_total: 500, after_total: 500, before_avail: 490, after_avail: 475, created_at: "2026-05-21 10:05" },
-  { id: "3", sku_code: "TSHIRT-001", change_type: "deduct", change_qty: 10, before_total: 500, after_total: 490, before_avail: 475, after_avail: 480, created_at: "2026-05-21 14:00" },
-  { id: "4", sku_code: "MUG-001", change_type: "lock", change_qty: 20, before_total: 300, after_total: 300, before_avail: 300, after_avail: 280, created_at: "2026-05-21 10:03" },
-]);
-
 const inventoryStore = useInventoryStore();
 
-const displayBalances = computed(() =>
-  inventoryStore.balances.length > 0 ? inventoryStore.balances : mockBalances.value
-);
-const displayJournals = computed(() =>
-  inventoryStore.journals.length > 0 ? inventoryStore.journals : mockJournals.value
-);
+const displayBalances = computed(() => inventoryStore.balances);
+const displayJournals = computed(() => inventoryStore.journals);
 
 const balanceColumns = [
   { prop: "sku_code", label: "SKU编码", width: 150 },

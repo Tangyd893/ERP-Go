@@ -3,17 +3,9 @@ import { ref, computed, onMounted } from "vue";
 import { ProTable } from "@erp/shared";
 import { useProductStore } from "@/stores/product";
 
-const mockData = ref([
-  { id: "1", sku_code: "TSHIRT-001", sku_name: "纯棉T恤-白色-M", platform_code: "amazon_us", platform_sku: "B0XXX001", asin: "B0XXX001", fnsku: "X001AAA", store: "美国站店铺A" },
-  { id: "2", sku_code: "TSHIRT-002", sku_name: "纯棉T恤-黑色-L", platform_code: "amazon_us", platform_sku: "B0XXX002", asin: "B0XXX002", fnsku: "X002BBB", store: "美国站店铺A" },
-  { id: "3", sku_code: "MUG-001", sku_name: "陶瓷马克杯-350ml", platform_code: "amazon_uk", platform_sku: "B0XXX003", asin: "B0XXX003", fnsku: "X003CCC", store: "英国站店铺B" },
-]);
-
 const productStore = useProductStore();
 
-const displayData = computed(() =>
-  productStore.skuMappings.length > 0 ? productStore.skuMappings : mockData.value
-);
+const displayData = computed(() => productStore.skuMappings);
 
 const columns = [
   { prop: "sku_code", label: "内部SKU", width: 140 },

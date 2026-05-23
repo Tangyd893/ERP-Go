@@ -377,3 +377,331 @@ func countOutboxByType(msgs []*outbox.OutboxMessage, eventType string) int {
 	}
 	return n
 }
+
+// mockStockDeductHandler 测试用库存扣减处理器
+type mockStockDeductHandler struct {
+	deducted   map[string]bool
+	shouldFail bool
+}
+
+func newMockStockDeductHandler() *mockStockDeductHandler {
+	return &mockStockDeductHandler{deducted: make(map[string]bool)}
+}
+
+func (h *mockStockDeductHandler) DeductStock(ctx context.Context, orderID, warehouseID string, skuQtys map[string]int) error {
+	if h.shouldFail {
+		return fmt.Errorf("库存扣减失败: 订单=%s 部分SKU已过期", orderID)
+	}
+	h.deducted[orderID] = true
+	return nil
+}
+
+// mockOrderStatusUpdater 测试用订单状态更新器
+type mockOrderStatusUpdater struct {
+	statuses   map[string]string
+	shouldFail bool
+}
+
+func newMockOrderStatusUpdater() *mockOrderStatusUpdater {
+	return &mockOrderStatusUpdater{statuses: make(map[string]string)}
+}
+
+func (h *mockOrderStatusUpdater) UpdateOrderStatus(ctx context.Context, orderID string, status string, metadata map[string]interface{}) error {
+	if h.shouldFail {
+		return fmt.Errorf("订单状态更新失败: 订单=%s", orderID)
+	}
+	h.statuses[orderID] = status
+	return nil
+}
+
+// mockCompensationStore 测试用补偿存储
+type mockCompensationStore struct {
+	compensations []CompensationRecord
+}
+
+func newMockCompensationStore() *mockCompensationStore {
+	return &mockCompensationStore{}
+}
+
+func (s *mockCompensationStore) CreateCompensation(ctx context.Context, orderID string, eventType string, payload []byte, reason string) error {
+	s.compensations = append(s.compensations, CompensationRecord{
+		ID:        fmt.Sprintf("comp-%d", len(s.compensations)+1),
+		OrderID:   orderID,
+		EventType: eventType,
+		Payload:   payload,
+		Reason:    reason,
+		Status:    "pending",
+		CreatedAt: time.Now(),
+	})
+	return nil
+}
+
+func (s *mockCompensationStore) FetchPendingCompensations(ctx context.Context, limit int) ([]CompensationRecord, error) {
+	return s.compensations, nil
+}
+
+func (s *mockCompensationStore) MarkCompensationResolved(ctx context.Context, id string) error {
+	for i, c := range s.compensations {
+		if c.ID == id {
+			s.compensations[i].Status = "resolved"
+			break
+		}
+	}
+	return nil
+}
+
+// TestP4HandleOutboundShipped 验证出库完成→库存扣减→订单发货完整流程
+func TestP4HandleOutboundShipped(t *testing.T) {
+	store := outbox.NewMemOutboxStore()
+	inbox := outbox.NewMemInboxStore()
+	coordinator := NewP4OutboundFlowCoordinator(store, inbox)
+	coordinator.SetStockDeductHandler(newMockStockDeductHandler())
+	coordinator.SetOrderStatusUpdater(newMockOrderStatusUpdater())
+	coordinator.SetCompensationStore(newMockCompensationStore())
+
+	data := OutboundShippedData{
+		OutboundID:  "OB-001",
+		OrderID:     "order-400",
+		TenantID:    "t-001",
+		WarehouseID: "wh-001",
+		TrackingNo:  "SF123456789",
+		Carrier:     "顺丰速运",
+		Items: []OrderItemData{
+			{SKUID: "sku-001", SKUCode: "TSHIRT-001", SKUName: "T恤", Qty: 2},
+		},
+	}
+	payload, _ := outbox.NewEventPayload(events.EventOutboundShipped, data)
+
+	if err := coordinator.HandleOutboundShipped(context.Background(), "msg-400", payload); err != nil {
+		t.Fatalf("处理出库发货事件失败: %v", err)
+	}
+
+	// 验证幂等
+	if err := coordinator.HandleOutboundShipped(context.Background(), "msg-400", payload); err != nil {
+		t.Fatalf("重复处理应幂等: %v", err)
+	}
+
+	pending, _ := store.FetchPending(context.Background(), 10)
+	foundDeduct := false
+	foundShipped := false
+	for _, msg := range pending {
+		if msg.EventType == events.EventStockDeducted {
+			foundDeduct = true
+		}
+		if msg.EventType == events.EventOrderShipped {
+			foundShipped = true
+		}
+	}
+	if !foundDeduct {
+		t.Error("应产生 inventory.deducted 事件")
+	}
+	if !foundShipped {
+		t.Error("应产生 order.shipped 事件")
+	}
+}
+
+// TestP4HandleOutboundShippedDeductFailed 验证库存扣减失败时写入补偿记录
+func TestP4HandleOutboundShippedDeductFailed(t *testing.T) {
+	store := outbox.NewMemOutboxStore()
+	inbox := outbox.NewMemInboxStore()
+	coordinator := NewP4OutboundFlowCoordinator(store, inbox)
+
+	deductHandler := newMockStockDeductHandler()
+	deductHandler.shouldFail = true
+	coordinator.SetStockDeductHandler(deductHandler)
+	coordinator.SetOrderStatusUpdater(newMockOrderStatusUpdater())
+
+	compStore := newMockCompensationStore()
+	coordinator.SetCompensationStore(compStore)
+
+	data := OutboundShippedData{
+		OutboundID:  "OB-002",
+		OrderID:     "order-500",
+		TenantID:    "t-001",
+		WarehouseID: "wh-001",
+		TrackingNo:  "SF000",
+		Carrier:     "顺丰速运",
+		Items: []OrderItemData{
+			{SKUID: "sku-999", SKUCode: "EXPIRED", SKUName: "过期SKU", Qty: 10},
+		},
+	}
+	payload, _ := outbox.NewEventPayload(events.EventOutboundShipped, data)
+
+	err := coordinator.HandleOutboundShipped(context.Background(), "msg-500", payload)
+	if err == nil {
+		t.Error("库存扣减失败时应返回错误")
+	}
+
+	if len(compStore.compensations) != 1 {
+		t.Fatalf("库存扣减失败应写入 1 条补偿记录，实际: %d", len(compStore.compensations))
+	}
+	if compStore.compensations[0].OrderID != "order-500" {
+		t.Errorf("补偿记录订单ID应为 order-500，实际: %s", compStore.compensations[0].OrderID)
+	}
+	if compStore.compensations[0].Status != "pending" {
+		t.Errorf("补偿记录状态应为 pending，实际: %s", compStore.compensations[0].Status)
+	}
+
+	dup, _ := inbox.IsDuplicate(context.Background(), "msg-500")
+	if dup {
+		t.Error("库存扣减失败时不应写入 inbox（待重试）")
+	}
+}
+
+// TestP4HandleOutboundShippedStatusUpdateFailed 验证订单状态更新失败时写入补偿
+func TestP4HandleOutboundShippedStatusUpdateFailed(t *testing.T) {
+	store := outbox.NewMemOutboxStore()
+	inbox := outbox.NewMemInboxStore()
+	coordinator := NewP4OutboundFlowCoordinator(store, inbox)
+
+	coordinator.SetStockDeductHandler(newMockStockDeductHandler())
+	statusUpdater := newMockOrderStatusUpdater()
+	statusUpdater.shouldFail = true
+	coordinator.SetOrderStatusUpdater(statusUpdater)
+
+	compStore := newMockCompensationStore()
+	coordinator.SetCompensationStore(compStore)
+
+	data := OutboundShippedData{
+		OutboundID:  "OB-003",
+		OrderID:     "order-600",
+		TenantID:    "t-001",
+		WarehouseID: "wh-001",
+		TrackingNo:  "YD111",
+		Carrier:     "韵达",
+		Items: []OrderItemData{
+			{SKUID: "sku-001", SKUCode: "TSHIRT-001", SKUName: "T恤", Qty: 1},
+		},
+	}
+	payload, _ := outbox.NewEventPayload(events.EventOutboundShipped, data)
+
+	err := coordinator.HandleOutboundShipped(context.Background(), "msg-600", payload)
+	if err == nil {
+		t.Error("订单状态更新失败时应返回错误")
+	}
+
+	if len(compStore.compensations) != 1 {
+		t.Fatalf("订单状态更新失败应写入 1 条补偿记录，实际: %d", len(compStore.compensations))
+	}
+
+	// 库存扣减事件仍应产生（因为扣减成功了）
+	pending, _ := store.FetchPending(context.Background(), 10)
+	foundDeduct := false
+	for _, msg := range pending {
+		if msg.EventType == events.EventStockDeducted {
+			foundDeduct = true
+		}
+	}
+	if !foundDeduct {
+		t.Error("库存扣减成功时应产生 inventory.deducted 事件")
+	}
+}
+
+// mockInboundHandler 测试用采购入库处理器
+type mockInboundHandler struct {
+	inbounds   map[string]string
+	shouldFail bool
+}
+
+func newMockInboundHandler() *mockInboundHandler {
+	return &mockInboundHandler{inbounds: make(map[string]string)}
+}
+
+func (h *mockInboundHandler) ReceiveInbound(ctx context.Context, tenantID, purchaseID, warehouseID, supplierID string, items []OrderItemData) (string, error) {
+	if h.shouldFail {
+		return "", fmt.Errorf("创建入库记录失败: 仓库 %s 不可用", warehouseID)
+	}
+	id := "IB-" + purchaseID
+	h.inbounds[purchaseID] = id
+	return id, nil
+}
+
+// TestP4HandleInboundReceived 验证采购入库完整流程及幂等
+func TestP4HandleInboundReceived(t *testing.T) {
+	store := outbox.NewMemOutboxStore()
+	inbox := outbox.NewMemInboxStore()
+	coordinator := NewP4OutboundFlowCoordinator(store, inbox)
+	coordinator.SetInboundHandler(newMockInboundHandler())
+
+	data := InboundReceivedData{
+		InboundID:   "IB-001",
+		PurchaseID:  "PO-001",
+		TenantID:    "t-001",
+		WarehouseID: "wh-001",
+		SupplierID:  "SUP-001",
+		Items: []OrderItemData{
+			{SKUID: "sku-001", SKUCode: "MAT-001", SKUName: "原材料A", Qty: 100},
+			{SKUID: "sku-002", SKUCode: "MAT-002", SKUName: "原材料B", Qty: 50},
+		},
+	}
+
+	payload, err := outbox.NewEventPayload(events.EventSettlementImported, data)
+	if err != nil {
+		t.Fatalf("构建事件载荷失败: %v", err)
+	}
+
+	if err := coordinator.HandleInboundReceived(context.Background(), "msg-700", payload); err != nil {
+		t.Fatalf("处理采购入库事件失败: %v", err)
+	}
+
+	// 验证幂等性
+	if err := coordinator.HandleInboundReceived(context.Background(), "msg-700", payload); err != nil {
+		t.Fatalf("重复处理同一消息应幂等返回: %v", err)
+	}
+
+	pending, err := store.FetchPending(context.Background(), 20)
+	if err != nil {
+		t.Fatalf("获取 pending 消息失败: %v", err)
+	}
+
+	foundIncreased := 0
+	foundSettlement := false
+	for _, msg := range pending {
+		if msg.EventType == events.EventStockIncreased {
+			foundIncreased++
+		}
+		if msg.EventType == events.EventSettlementImported {
+			foundSettlement = true
+		}
+	}
+
+	if foundIncreased != 2 {
+		t.Errorf("应为 2 个 SKU 各产生 inventory.increased 事件，实际: %d", foundIncreased)
+	}
+	if !foundSettlement {
+		t.Error("应产生 finance.settlement.imported 事件")
+	}
+}
+
+// TestP4HandleInboundReceivedInboundFailed 验证入库处理失败时不写 inbox
+func TestP4HandleInboundReceivedInboundFailed(t *testing.T) {
+	store := outbox.NewMemOutboxStore()
+	inbox := outbox.NewMemInboxStore()
+	coordinator := NewP4OutboundFlowCoordinator(store, inbox)
+
+	handler := newMockInboundHandler()
+	handler.shouldFail = true
+	coordinator.SetInboundHandler(handler)
+
+	data := InboundReceivedData{
+		PurchaseID:  "PO-002",
+		TenantID:    "t-001",
+		WarehouseID: "wh-001",
+		SupplierID:  "SUP-001",
+		Items: []OrderItemData{
+			{SKUID: "sku-001", SKUCode: "MAT-001", SKUName: "原材料A", Qty: 100},
+		},
+	}
+
+	payload, _ := outbox.NewEventPayload(events.EventSettlementImported, data)
+
+	err := coordinator.HandleInboundReceived(context.Background(), "msg-800", payload)
+	if err == nil {
+		t.Error("入库处理失败时应返回错误")
+	}
+
+	dup, _ := inbox.IsDuplicate(context.Background(), "msg-800")
+	if dup {
+		t.Error("入库处理失败时不应写入 inbox（待重试）")
+	}
+}

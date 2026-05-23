@@ -19,6 +19,7 @@ type OutboxMessage struct {
 	ID            int64         `json:"id"`
 	AggregateID   string        `json:"aggregate_id"`
 	AggregateType string        `json:"aggregate_type"`
+	TenantID      string        `json:"tenant_id"`
 	EventType     string        `json:"event_type"`
 	Payload       []byte        `json:"payload"`
 	Status        MessageStatus `json:"status"`

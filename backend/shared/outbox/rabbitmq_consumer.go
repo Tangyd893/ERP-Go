@@ -34,10 +34,13 @@ type RabbitMQConsumer struct {
 	mu        sync.Mutex
 	closed    bool
 	consumerTag string
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 // NewRabbitMQConsumer 创建 RabbitMQ 消费者
-func NewRabbitMQConsumer(url, queueName string, bindKeys []string, handler ConsumeHandler, inbox InboxStore, log logger.Logger) (*RabbitMQConsumer, error) {
+func NewRabbitMQConsumer(ctx context.Context, url, queueName string, bindKeys []string, handler ConsumeHandler, inbox InboxStore, log logger.Logger) (*RabbitMQConsumer, error) {
+	consumerCtx, cancel := context.WithCancel(ctx)
 	c := &RabbitMQConsumer{
 		url:       url,
 		queueName: queueName,
@@ -46,8 +49,11 @@ func NewRabbitMQConsumer(url, queueName string, bindKeys []string, handler Consu
 		inbox:     inbox,
 		log:       log,
 		prefetch:  10,
+		ctx:       consumerCtx,
+		cancel:    cancel,
 	}
 	if err := c.connect(); err != nil {
+		cancel()
 		return nil, err
 	}
 	return c, nil
@@ -141,7 +147,7 @@ func (c *RabbitMQConsumer) handleDelivery(d *amqp.Delivery) {
 		messageID = fmt.Sprintf("%s-%s", eventType, d.Timestamp.String())
 	}
 
-	duplicate, err := c.inbox.IsDuplicate(context.Background(), messageID)
+	duplicate, err := c.inbox.IsDuplicate(c.ctx, messageID)
 	if err != nil {
 		c.log.Errorf("Inbox 幂等检查失败: %v", err)
 		d.Nack(false, true)
@@ -152,7 +158,7 @@ func (c *RabbitMQConsumer) handleDelivery(d *amqp.Delivery) {
 		return
 	}
 
-	if err := c.handler(context.Background(), eventType, messageID, d.Body); err != nil {
+	if err := c.handler(c.ctx, eventType, messageID, d.Body); err != nil {
 		c.log.Errorf("事件处理失败: type=%s, err=%v", eventType, err)
 		retryCount := c.getRetryCount(d)
 		if retryCount >= maxRetries {
@@ -169,7 +175,7 @@ func (c *RabbitMQConsumer) handleDelivery(d *amqp.Delivery) {
 		Payload:     d.Body,
 		ProcessedAt: d.Timestamp,
 	}
-	if err := c.inbox.Save(context.Background(), inboxMsg); err != nil {
+	if err := c.inbox.Save(c.ctx, inboxMsg); err != nil {
 		c.log.Errorf("Inbox 保存失败: %v", err)
 		d.Nack(false, true)
 		return
@@ -204,6 +210,7 @@ func (c *RabbitMQConsumer) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.closed = true
+	c.cancel()
 	if c.channel != nil {
 		c.channel.Close()
 	}

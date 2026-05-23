@@ -24,6 +24,7 @@ logs/
 bin/
 coverage.out
 *.test
+.cache/
 
 # Node / 前端
 node_modules/

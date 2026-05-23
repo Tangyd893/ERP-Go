@@ -3,16 +3,9 @@ import { ref, computed, onMounted } from "vue";
 import { ProTable } from "@erp/shared";
 import { useChannelStore } from "@/stores/channel";
 
-const mockData = ref([
-  { id: "1", import_type: "csv", store_name: "美国站店铺A", status: "completed", total_rows: 150, success_rows: 148, failed_rows: 2, created_at: "2026-05-21 10:00" },
-  { id: "2", import_type: "api", store_name: "英国站店铺B", status: "processing", total_rows: 0, success_rows: 0, failed_rows: 0, created_at: "2026-05-21 11:00" },
-]);
-
 const channelStore = useChannelStore();
 
-const displayData = computed(() =>
-  channelStore.importTasks.length > 0 ? channelStore.importTasks : mockData.value
-);
+const displayData = computed(() => channelStore.importTasks);
 
 const columns = [
   { prop: "import_type", label: "导入方式", width: 100 },

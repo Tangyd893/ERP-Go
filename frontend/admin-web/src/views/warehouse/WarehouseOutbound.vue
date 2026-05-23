@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted } from "vue";
 import { ProTable } from "@erp/shared";
+import { useWarehouseStore } from "@/stores/warehouse";
 
-const outbounds = ref([
-  { id: "1", order_no: "AMZ-20260521-001", status: "packed", items: 2, created_at: "2026-05-21 10:02" },
-  { id: "2", order_no: "AMZ-20260520-004", status: "shipped", items: 1, created_at: "2026-05-20 16:30" },
-]);
+const warehouseStore = useWarehouseStore();
+
+onMounted(() => {
+  warehouseStore.fetchOutbounds();
+});
 
 const columns = [
   { prop: "order_no", label: "关联订单", width: 200 },
@@ -39,8 +41,9 @@ const statusLabels: Record<string, { type: string; label: string }> = {
       </template>
       <ProTable
         :columns="columns"
-        :data="outbounds"
-        :total="outbounds.length"
+        :data="warehouseStore.outbounds"
+        :total="warehouseStore.total"
+        :loading="warehouseStore.loading"
       >
         <template #status="{ row }">
           <el-tag :type="statusLabels[row.status]?.type || 'info'" size="small">

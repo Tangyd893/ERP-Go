@@ -10,6 +10,7 @@
 | 组件 | 路径 | 说明 |
 |------|------|------|
 | **Outbox/Inbox** | `outbox/001_create_outbox.sql` | 共享基础设施（发件箱/收件箱），不归属任一业务服务，执行顺序应在所有业务表之前 |
+| **Outbox TenantID** | `outbox/002_add_tenant_id.sql` | Outbox 消息增加租户隔离字段 |
 
 ## 业务表迁移对照（根级为历史快照）
 

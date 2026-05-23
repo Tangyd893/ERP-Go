@@ -33,6 +33,7 @@ func main() {
 
 	var db *gorm.DB
 	var orderAppService *app.OrderAppService
+	var publisher outbox.EventPublisher
 	database, dbErr := repository.NewDB(cfg.Database)
 	if dbErr != nil {
 		log.Warnf("数据库连接失败，使用占位模式: %v", dbErr)
@@ -45,7 +46,26 @@ func main() {
 		outboxStore := outbox.NewPGOutboxStore(db)
 		orderAppService.WithOutbox(outboxStore)
 
-		publisher := outbox.NewLogPublisher(log)
+		// 初始化事件发布器：优先使用 RabbitMQ，不可用时降级为日志发布
+		rabbitURL := os.Getenv("RABBITMQ_URL")
+		if rabbitURL == "" && cfg.RabbitMQ.Host != "" {
+			rabbitURL = fmt.Sprintf("amqp://%s:%s@%s:%d/%s",
+				cfg.RabbitMQ.User, cfg.RabbitMQ.Password,
+				cfg.RabbitMQ.Host, cfg.RabbitMQ.Port, cfg.RabbitMQ.VHost)
+		}
+		if rabbitURL != "" {
+			rmqPublisher, rmqErr := outbox.NewRabbitMQPublisher(rabbitURL, "erp.events", log)
+			if rmqErr != nil {
+				log.Warnf("RabbitMQ 发布器初始化失败，降级为日志发布: %v", rmqErr)
+				publisher = outbox.NewLogPublisher(log)
+			} else {
+				publisher = rmqPublisher
+				log.Info("RabbitMQ 事件发布器已就绪")
+			}
+		} else {
+			log.Info("未配置 RabbitMQ，使用日志发布模式")
+			publisher = outbox.NewLogPublisher(log)
+		}
 		processor := outbox.NewOutboxProcessor(outboxStore, publisher, 10, 5*time.Second)
 
 		inventoryURL := os.Getenv("INVENTORY_SERVICE_URL")
@@ -109,6 +129,11 @@ func main() {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	if publisher != nil {
+		if closer, ok := publisher.(interface{ Close() error }); ok {
+			closer.Close()
+		}
+	}
 	if db != nil {
 		if sqlDB, err := db.DB(); err == nil {
 			sqlDB.Close()

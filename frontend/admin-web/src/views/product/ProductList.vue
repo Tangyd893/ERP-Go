@@ -1,22 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { computed, onMounted } from "vue";
 import { ProTable } from "@erp/shared";
 import { useProductStore } from "@/stores/product";
 
-const mockData = ref([
-  { id: "1", code: "TSHIRT-001", name: "纯棉T恤-白色-M", spu_name: "纯棉T恤", barcode: "6901234567890", weight: 0.2, sale_price: 15.99, currency: "USD", status: "active" },
-  { id: "2", code: "TSHIRT-002", name: "纯棉T恤-黑色-L", spu_name: "纯棉T恤", barcode: "6901234567891", weight: 0.22, sale_price: 15.99, currency: "USD", status: "active" },
-  { id: "3", code: "MUG-001", name: "陶瓷马克杯-350ml", spu_name: "陶瓷马克杯", barcode: "6901234567892", weight: 0.35, sale_price: 12.99, currency: "USD", status: "active" },
-]);
-
 const productStore = useProductStore();
 
-const displayData = computed(() =>
-  productStore.products.length > 0 ? productStore.products : mockData.value
-);
-const displayTotal = computed(() =>
-  productStore.products.length > 0 ? productStore.productTotal : mockData.value.length
-);
+const displayData = computed(() => productStore.products);
+const displayTotal = computed(() => productStore.productTotal);
 
 const columns = [
   { prop: "code", label: "SKU编码", width: 150 },

@@ -1,16 +1,14 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted } from "vue";
 import { ProTable } from "@erp/shared";
+import { useTransportStore } from "@/stores/transport";
 
-const carriers = ref([
-  { id: "1", name: "USPS", code: "usps", service: "Priority Mail", status: "active" },
-  { id: "2", name: "FedEx", code: "fedex", service: "Ground", status: "active" },
-  { id: "3", name: "UPS", code: "ups", service: "Standard", status: "active" },
-]);
+const transportStore = useTransportStore();
 
-const shipments = ref([
-  { id: "1", tracking_no: "1Z999AA10123456784", carrier: "USPS", status: "shipped", order_no: "AMZ-20260520-004", weight: 0.5, created_at: "2026-05-20 17:00" },
-]);
+onMounted(() => {
+  transportStore.fetchCarriers();
+  transportStore.fetchShipments();
+});
 
 const carrierColumns = [
   { prop: "name", label: "物流商", width: 120 },
@@ -49,9 +47,10 @@ const statusLabels: Record<string, { type: string; label: string }> = {
       </template>
       <ProTable
         :columns="carrierColumns"
-        :data="carriers"
-        :total="carriers.length"
-        :page-size="carriers.length"
+        :data="transportStore.carriers"
+        :total="transportStore.carriers.length"
+        :loading="transportStore.loading"
+        :page-size="transportStore.carriers.length || 10"
       >
         <template #status="{ row }">
           <el-tag :type="row.status === 'active' ? 'success' : 'danger'" size="small">
@@ -65,9 +64,10 @@ const statusLabels: Record<string, { type: string; label: string }> = {
       <template #header><span>发运记录</span></template>
       <ProTable
         :columns="shipmentColumns"
-        :data="shipments"
-        :total="shipments.length"
-        :page-size="shipments.length"
+        :data="transportStore.shipments"
+        :total="transportStore.shipments.length"
+        :loading="transportStore.loading"
+        :page-size="transportStore.shipments.length || 10"
       >
         <template #status="{ row }">
           <el-tag :type="statusLabels[row.status]?.type || 'info'" size="small">

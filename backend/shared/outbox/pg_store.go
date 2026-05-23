@@ -13,6 +13,7 @@ type OutboxMessageModel struct {
 	ID            int64      `gorm:"column:id;primaryKey;autoIncrement"`
 	AggregateID   string     `gorm:"column:aggregate_id;index"`
 	AggregateType string     `gorm:"column:aggregate_type"`
+	TenantID      string     `gorm:"column:tenant_id;index"`
 	EventType     string     `gorm:"column:event_type;index"`
 	Payload       []byte     `gorm:"column:payload"`
 	Status        string     `gorm:"column:status;index"`
@@ -47,6 +48,7 @@ func (s *PGOutboxStore) Save(ctx context.Context, msg *OutboxMessage) error {
 	return s.db.WithContext(ctx).Create(&OutboxMessageModel{
 		AggregateID:   msg.AggregateID,
 		AggregateType: msg.AggregateType,
+		TenantID:      msg.TenantID,
 		EventType:     msg.EventType,
 		Payload:       msg.Payload,
 		Status:        string(msg.Status),
@@ -71,6 +73,7 @@ func (s *PGOutboxStore) FetchPending(ctx context.Context, limit int) ([]*OutboxM
 			ID:            m.ID,
 			AggregateID:   m.AggregateID,
 			AggregateType: m.AggregateType,
+			TenantID:      m.TenantID,
 			EventType:     m.EventType,
 			Payload:       m.Payload,
 			Status:        MessageStatus(m.Status),

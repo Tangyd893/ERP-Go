@@ -1,23 +1,12 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { computed, onMounted } from "vue";
 import { ProTable } from "@erp/shared";
 import { useOrderStore } from "@/stores/order";
 
-const mockOrders = ref([
-  { id: "1", platform_order_no: "AMZ-20260521-001", store: "美国站店铺A", buyer_name: "John Doe", currency: "USD", total_amount: 46.97, status: "locked", items: 2, created_at: "2026-05-21 10:00" },
-  { id: "2", platform_order_no: "AMZ-20260521-002", store: "美国站店铺A", buyer_name: "Jane Smith", currency: "USD", total_amount: 15.99, status: "approved", items: 1, created_at: "2026-05-21 10:15" },
-  { id: "3", platform_order_no: "AMZ-20260521-003", store: "英国站店铺B", buyer_name: "Tom Brown", currency: "GBP", total_amount: 25.98, status: "pending", items: 2, created_at: "2026-05-21 11:00" },
-  { id: "4", platform_order_no: "AMZ-20260520-004", store: "美国站店铺A", buyer_name: "Alice Wang", currency: "USD", total_amount: 12.99, status: "shipped", items: 1, created_at: "2026-05-20 16:00" },
-]);
-
 const orderStore = useOrderStore();
 
-const displayData = computed(() =>
-  orderStore.orders.length > 0 ? orderStore.orders : mockOrders.value
-);
-const displayTotal = computed(() =>
-  orderStore.orders.length > 0 ? orderStore.total : mockOrders.value.length
-);
+const displayData = computed(() => orderStore.orders);
+const displayTotal = computed(() => orderStore.total);
 
 const columns = [
   { prop: "platform_order_no", label: "平台订单号", width: 200 },

@@ -3,16 +3,9 @@ import { ref, computed, onMounted } from "vue";
 import { ProTable, ProForm } from "@erp/shared";
 import { useChannelStore } from "@/stores/channel";
 
-const mockData = ref([
-  { id: "1", name: "美国站店铺A", platform_code: "amazon_us", site: "Amazon.com", auth_status: "authorized", status: "active", created_at: "2026-01-01" },
-  { id: "2", name: "英国站店铺B", platform_code: "amazon_uk", site: "Amazon.co.uk", auth_status: "authorized", status: "active", created_at: "2026-02-15" },
-]);
-
 const channelStore = useChannelStore();
 
-const displayData = computed(() =>
-  channelStore.stores.length > 0 ? channelStore.stores : mockData.value
-);
+const displayData = computed(() => channelStore.stores);
 
 const columns = [
   { prop: "name", label: "店铺名称", minWidth: 180 },

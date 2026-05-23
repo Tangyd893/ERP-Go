@@ -67,6 +67,9 @@ func assertEventPayload(t *testing.T, msg *outbox.OutboxMessage, wantEventType s
 	if msg.AggregateType != "SalesOrder" {
 		t.Errorf("期望聚合类型 SalesOrder，实际 %s", msg.AggregateType)
 	}
+	if msg.TenantID != "" {
+		t.Logf("事件消息租户ID: %s", msg.TenantID)
+	}
 	if msg.Status != outbox.StatusPending {
 		t.Errorf("期望消息状态 pending，实际 %s", msg.Status)
 	}
@@ -100,6 +103,9 @@ func TestCreateOrderEmitsEvent(t *testing.T) {
 
 	msgs := assertPendingMessages(t, outboxStore, 1)
 	assertEventPayload(t, msgs[0], sharedEvents.EventOrderImported, "order-001")
+	if msgs[0].TenantID != "tenant-001" {
+		t.Errorf("期望租户ID tenant-001，实际 %s", msgs[0].TenantID)
+	}
 }
 
 // TestApproveOrderEmitsEvent 验证审核订单时正确发布 order.approved 事件
@@ -124,6 +130,10 @@ func TestApproveOrderEmitsEvent(t *testing.T) {
 
 	msgs := assertPendingMessages(t, outboxStore, 1)
 	assertEventPayload(t, msgs[0], sharedEvents.EventOrderApproved, "order-002")
+
+	if msgs[0].TenantID != "tenant-002" {
+		t.Errorf("期望租户ID tenant-002，实际 %s", msgs[0].TenantID)
+	}
 
 	if updated, ok := repo.orders["order-002"]; !ok || updated.Status != domain.OrderApproved {
 		t.Error("审核后订单状态应为 approved")
@@ -152,6 +162,9 @@ func TestCancelOrderEmitsEvent(t *testing.T) {
 
 	msgs := assertPendingMessages(t, outboxStore, 1)
 	assertEventPayload(t, msgs[0], sharedEvents.EventOrderCancelled, "order-003")
+	if msgs[0].TenantID != "tenant-003" {
+		t.Errorf("期望租户ID tenant-003，实际 %s", msgs[0].TenantID)
+	}
 }
 
 // TestEventsWithoutOutbox 验证未注入 outbox 时不发布事件（不报错）

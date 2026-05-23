@@ -1,23 +1,14 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from "vue";
+import { computed, onMounted } from "vue";
 import { ElMessage } from "element-plus";
 import { ProTable } from "@erp/shared";
 import { useOrderStore } from "@/stores/order";
 
-const mockOrders = ref([
-  { id: "1", platform_order_no: "AMZ-20260521-100", store: "美国站店铺A", buyer_name: "张三", currency: "USD", total_amount: 99.99, status: "pending", created_at: "2026-05-21 10:30" },
-  { id: "2", platform_order_no: "AMZ-20260521-101", store: "英国站店铺B", buyer_name: "李四", currency: "GBP", total_amount: 45.50, status: "pending", created_at: "2026-05-21 11:00" },
-  { id: "3", platform_order_no: "AMZ-20260521-102", store: "美国站店铺A", buyer_name: "王五", currency: "USD", total_amount: 23.80, status: "pending", created_at: "2026-05-21 11:30" },
-]);
-
 const orderStore = useOrderStore();
 
-const displayData = computed(() => {
-  if (orderStore.orders.length > 0) {
-    return orderStore.orders.filter((o) => o.status === "pending");
-  }
-  return mockOrders.value;
-});
+const displayData = computed(() =>
+  orderStore.orders.filter((o) => o.status === "pending")
+);
 
 const columns = [
   { prop: "platform_order_no", label: "平台订单号", width: 200 },
