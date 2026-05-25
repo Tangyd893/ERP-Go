@@ -219,6 +219,14 @@ make dev-infra                         # 仅中间件 + 迁移
 | Inventory Service | 8086 |
 | Warehouse Service | 8087 |
 
+### 前端开发
+
+```bash
+npm run dev:admin        # 管理后台 → http://localhost:5173
+npm run dev:pda          # WMS PDA  → http://localhost:5174
+npm run dev:dashboard    # 经营看板 → http://localhost:5175
+```
+
 日志位于 `.cache/logs/` 目录；健康检查：`curl http://localhost:8080/health`
 
 ## 验证命令

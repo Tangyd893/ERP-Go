@@ -5,7 +5,7 @@ const routes = [
     path: "/login",
     name: "Login",
     component: () => import("@/views/Login.vue"),
-    meta: { title: "PDA 登录" },
+    meta: { title: "PDA 登录", public: true },
   },
   {
     path: "/",
@@ -37,11 +37,36 @@ const routes = [
     component: () => import("@/views/ShipConfirm.vue"),
     meta: { title: "出库确认" },
   },
+  {
+    path: "/pack",
+    name: "PackScan",
+    component: () => import("@/views/PackScan.vue"),
+    meta: { title: "打包" },
+  },
+  {
+    path: "/weigh",
+    name: "WeighScan",
+    component: () => import("@/views/WeighScan.vue"),
+    meta: { title: "称重" },
+  },
 ];
 
 const router = createRouter({
   history: createWebHistory(),
   routes,
+});
+
+router.beforeEach((to, _from, next) => {
+  const token = localStorage.getItem("access_token");
+  if (!to.meta.public && !token) {
+    next({ path: "/login", query: { redirect: to.fullPath } });
+    return;
+  }
+  if (to.path === "/login" && token) {
+    next("/");
+    return;
+  }
+  next();
 });
 
 export default router;

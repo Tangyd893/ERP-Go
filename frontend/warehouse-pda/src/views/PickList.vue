@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { useWarehouseStore } from "@/stores/warehouse";
 
@@ -10,6 +10,10 @@ onMounted(() => {
   store.fetchOutbounds();
 });
 
+const pickableOutbounds = computed(() =>
+  store.outbounds.filter((o) => o.status === "picking" || o.status === "created")
+);
+
 function openPick(outboundId: string) {
   router.push({ path: "/pick/scan", query: { outbound_id: outboundId } });
 }
@@ -19,7 +23,7 @@ function openPick(outboundId: string) {
   <div style="padding: 16px">
     <el-page-header @back="router.push('/')" content="拣货任务" />
     <el-card
-      v-for="ob in store.outbounds.filter((o) => o.status === 'picking' || o.status === 'created')"
+      v-for="ob in pickableOutbounds"
       :key="ob.id"
       style="margin-top: 12px; cursor: pointer"
       @click="openPick(ob.id)"

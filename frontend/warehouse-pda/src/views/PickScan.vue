@@ -2,7 +2,7 @@
 import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
-import { useWarehouseStore } from "@/stores/warehouse";
+import { useWarehouseStore, getErrorMessage } from "@/stores/warehouse";
 
 const route = useRoute();
 const router = useRouter();
@@ -25,8 +25,8 @@ async function handlePick(taskId: string, maxQty: number) {
     await store.pickScan(taskId, scanQty.value || maxQty);
     ElMessage.success("拣货成功");
     await store.fetchPickTasks(outboundId);
-  } catch {
-    ElMessage.error("拣货失败，请重试");
+  } catch (e: unknown) {
+    ElMessage.error(getErrorMessage(e, "拣货失败，请重试"));
   } finally {
     scanning.value = false;
   }

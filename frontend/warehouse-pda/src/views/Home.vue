@@ -15,6 +15,9 @@ const checkingCount = computed(
 const packingCount = computed(
   () => store.outbounds.filter((o) => ["checked", "packed", "weighed"].includes(o.status)).length
 );
+const weighedCount = computed(
+  () => store.outbounds.filter((o) => o.status === "packed").length
+);
 
 onMounted(() => {
   store.fetchOutbounds();
@@ -32,6 +35,14 @@ onMounted(() => {
       <el-card shadow="hover" style="cursor: pointer" @click="router.push('/check')">
         <div style="text-align: center; font-size: 18px">复核任务</div>
         <div style="text-align: center; color: #E6A23C; font-size: 24px; font-weight: bold">{{ checkingCount }}</div>
+      </el-card>
+      <el-card shadow="hover" style="cursor: pointer" @click="router.push('/pack')">
+        <div style="text-align: center; font-size: 18px">打包</div>
+        <div style="text-align: center; color: #909399; font-size: 24px; font-weight: bold">{{ packingCount }}</div>
+      </el-card>
+      <el-card shadow="hover" style="cursor: pointer" @click="router.push('/weigh')">
+        <div style="text-align: center; font-size: 18px">称重</div>
+        <div style="text-align: center; color: #F56C6C; font-size: 24px; font-weight: bold">{{ weighedCount }}</div>
       </el-card>
       <el-card shadow="hover" style="cursor: pointer" @click="router.push('/ship')">
         <div style="text-align: center; font-size: 18px">待出库</div>

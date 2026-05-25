@@ -1,14 +1,18 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
-import { useWarehouseStore } from "@/stores/warehouse";
+import { useWarehouseStore, getErrorMessage } from "@/stores/warehouse";
 
 const router = useRouter();
 const store = useWarehouseStore();
 const trackingNo = ref("");
 
 onMounted(() => store.fetchOutbounds());
+
+const shippableOutbounds = computed(() =>
+  store.outbounds.filter((o) => ["checked", "packed", "weighed", "picked"].includes(o.status))
+);
 
 async function handleShip(outboundId: string) {
   try {
@@ -17,8 +21,8 @@ async function handleShip(outboundId: string) {
     await store.confirmShip(outboundId, trackingNo.value, "default");
     ElMessage.success("出库确认成功");
     await store.fetchOutbounds();
-  } catch {
-    ElMessage.error("出库确认失败");
+  } catch (e: unknown) {
+    ElMessage.error(getErrorMessage(e, "出库确认失败"));
   }
 }
 </script>
@@ -28,7 +32,7 @@ async function handleShip(outboundId: string) {
     <el-page-header @back="router.push('/')" content="出库确认" />
     <el-input v-model="trackingNo" placeholder="物流单号（可选）" style="margin: 12px 0" />
     <el-card
-      v-for="ob in store.outbounds.filter((o) => ['checked', 'packed', 'weighed', 'picked'].includes(o.status))"
+      v-for="ob in shippableOutbounds"
       :key="ob.id"
       style="margin-top: 12px"
     >

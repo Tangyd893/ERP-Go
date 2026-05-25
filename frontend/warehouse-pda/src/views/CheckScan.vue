@@ -1,21 +1,25 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
-import { useWarehouseStore } from "@/stores/warehouse";
+import { useWarehouseStore, getErrorMessage } from "@/stores/warehouse";
 
 const router = useRouter();
 const store = useWarehouseStore();
 
 onMounted(() => store.fetchOutbounds());
 
+const checkingOutbounds = computed(() =>
+  store.outbounds.filter((o) => o.status === "picked" || o.status === "picking")
+);
+
 async function handleCheck(ob: { id: string }) {
   try {
     await store.checkScan(ob.id, "", 1);
     ElMessage.success("复核完成");
     await store.fetchOutbounds();
-  } catch {
-    ElMessage.error("复核失败");
+  } catch (e: unknown) {
+    ElMessage.error(getErrorMessage(e, "复核失败"));
   }
 }
 </script>
@@ -24,7 +28,7 @@ async function handleCheck(ob: { id: string }) {
   <div style="padding: 16px">
     <el-page-header @back="router.push('/')" content="复核任务" />
     <el-card
-      v-for="ob in store.outbounds.filter((o) => o.status === 'picked' || o.status === 'picking')"
+      v-for="ob in checkingOutbounds"
       :key="ob.id"
       style="margin-top: 12px"
     >

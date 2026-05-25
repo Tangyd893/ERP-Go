@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted } from "vue";
+import { computed, onMounted } from "vue";
 import { ProTable } from "@erp/shared";
 import { useWarehouseStore } from "@/stores/warehouse";
 
@@ -8,6 +8,10 @@ const warehouseStore = useWarehouseStore();
 onMounted(() => {
   warehouseStore.fetchOutbounds();
 });
+
+const pickingCount = computed(() => warehouseStore.outbounds.filter((o) => o.status === "picking" || o.status === "created").length);
+const checkingCount = computed(() => warehouseStore.outbounds.filter((o) => o.status === "picked" || o.status === "checking" || o.status === "checked").length);
+const packingCount = computed(() => warehouseStore.outbounds.filter((o) => ["packed", "weighed"].includes(o.status)).length);
 
 const columns = [
   { prop: "order_no", label: "关联订单", width: 200 },
@@ -58,13 +62,13 @@ const statusLabels: Record<string, { type: string; label: string }> = {
     </el-card>
     <el-row :gutter="16">
       <el-col :span="8">
-        <el-card><template #header>拣货任务</template><div style="text-align: center; padding: 20px; font-size: 32px; color: #409EFF">3</div></el-card>
+        <el-card><template #header>拣货任务</template><div style="text-align: center; padding: 20px; font-size: 32px; color: #409EFF">{{ pickingCount }}</div></el-card>
       </el-col>
       <el-col :span="8">
-        <el-card><template #header>复核任务</template><div style="text-align: center; padding: 20px; font-size: 32px; color: #E6A23C">2</div></el-card>
+        <el-card><template #header>复核任务</template><div style="text-align: center; padding: 20px; font-size: 32px; color: #E6A23C">{{ checkingCount }}</div></el-card>
       </el-col>
       <el-col :span="8">
-        <el-card><template #header>待打包</template><div style="text-align: center; padding: 20px; font-size: 32px; color: #67C23A">5</div></el-card>
+        <el-card><template #header>待打包</template><div style="text-align: center; padding: 20px; font-size: 32px; color: #67C23A">{{ packingCount }}</div></el-card>
       </el-col>
     </el-row>
   </div>

@@ -14,6 +14,16 @@ export interface PickTask {
   status: string;
 }
 
+export function getErrorMessage(e: unknown, defaultMsg = "操作失败，请重试"): string {
+  const status = (e as { response?: { status?: number } })?.response?.status;
+  if (status === 409) return "重复操作或该步骤已完成，请刷新页面";
+  if (status === 404) return "未找到对应数据，请确认信息正确";
+  if (status === 401) return "登录已过期，请重新登录";
+  if (status && status >= 500) return "服务器繁忙，请稍后重试";
+  if (!status) return "网络不可用，请检查连接后重试";
+  return defaultMsg;
+}
+
 export interface OutboundOrder {
   id: string;
   order_id: string;

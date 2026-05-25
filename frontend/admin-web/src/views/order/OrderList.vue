@@ -14,7 +14,9 @@ const columns = [
   { prop: "buyer_name", label: "买家", width: 130 },
   { prop: "total_amount", label: "金额", width: 100, align: "right" as const },
   { prop: "items", label: "件数", width: 70, align: "center" as const },
+  { prop: "outbound_no", label: "出库单号", width: 150 },
   { prop: "status", label: "状态", width: 100 },
+  { prop: "shipped_at", label: "发货时间", width: 170 },
   { prop: "created_at", label: "创建时间", width: 170 },
   { prop: "actions", label: "操作", width: 240, fixed: "right" as const },
 ];
