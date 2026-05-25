@@ -1,0 +1,68 @@
+{{- define "erp-go.deployment" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .name }}
+  namespace: {{ $.Release.Namespace }}
+  labels:
+    app: {{ .name }}
+    component: {{ .component }}
+spec:
+  replicas: {{ .replicas }}
+  selector:
+    matchLabels:
+      app: {{ .name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .name }}
+    spec:
+      {{- if .serviceAccount }}
+      serviceAccountName: {{ .serviceAccount }}
+      {{- end }}
+      containers:
+        - name: {{ .name }}
+          image: {{ .image | default (printf "%s/%s:%s" $.Values.global.imageRegistry $.Values.global.image (default "latest" $.Values.global.imageTag)) }}
+          ports:
+            - containerPort: {{ .port }}
+          env:
+            - name: ENVIRONMENT
+              value: {{ $.Values.global.environment | quote }}
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef: {{ $.Values.secrets.jwt.secretKeyRef | toYaml | nindent 18 }}
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: {{ $.Values.secrets.database.urlKeyRef | toYaml | nindent 18 }}
+            - name: SERVER_PORT
+              value: {{ .port | quote }}
+          resources: {{ .resources | default $.Values.gateway.resources | toYaml | nindent 12 }}
+          livenessProbe:
+            httpGet: { path: /health, port: {{ .port }} }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet: { path: /health, port: {{ .port }} }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+{{ end -}}
+
+{{- range $svcName, $svc := .Values.services }}
+{{- if $svc.enabled }}
+---
+{{ include "erp-go.deployment" (merge (dict "name" (printf "%s-service" $svcName) "component" $svcName) $svc) }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $svcName }}-service
+  namespace: {{ $.Release.Namespace }}
+spec:
+  selector:
+    app: {{ $svcName }}-service
+  ports:
+    - port: {{ $svc.port }}
+      targetPort: {{ $svc.port }}
+  type: ClusterIP
+{{- end }}
+{{- end }}

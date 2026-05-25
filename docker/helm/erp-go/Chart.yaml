@@ -1,0 +1,6 @@
+apiVersion: v2
+name: erp-go
+description: ERP-Go 微服务 Helm Chart
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
