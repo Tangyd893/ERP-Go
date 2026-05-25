@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -34,3 +36,17 @@ jobs:
 
       - name: Verify (Go + frontend)
         run: bash scripts/verify.sh
+
+      - name: Go test with coverage
+        run: |
+          go test -C backend ./... -coverprofile=coverage.out -covermode=atomic
+          go tool cover -func=coverage.out | tail -1
+
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v4
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=Tangyd893_ERP-Go
+            -Dsonar.organization=tangyd893
