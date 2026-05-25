@@ -22,6 +22,7 @@ logs/
 
 # Go
 bin/
+*.exe
 coverage.out
 *.test
 .cache/

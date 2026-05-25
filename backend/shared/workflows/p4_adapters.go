@@ -78,13 +78,22 @@ func NewHTTPOutboundCreatorAdapter(warehouseURL string) *HTTPOutboundCreatorAdap
 }
 
 func (a *HTTPOutboundCreatorAdapter) CreateOutbound(ctx context.Context, tenantID, orderID, orderNo, warehouseID string, items []OrderItemData) (string, error) {
+	itemPayload := make([]map[string]interface{}, 0, len(items))
+	for _, it := range items {
+		itemPayload = append(itemPayload, map[string]interface{}{
+			"sku_id":   it.SKUID,
+			"sku_code": it.SKUCode,
+			"sku_name": it.SKUName,
+			"quantity": it.Qty,
+		})
+	}
 	body := map[string]interface{}{
 		"order_id":     orderID,
 		"order_no":     orderNo,
 		"warehouse_id": warehouseID,
+		"items":        itemPayload,
 	}
 	_ = tenantID
-	_ = items
 
 	data, err := json.Marshal(body)
 	if err != nil {
@@ -114,4 +123,45 @@ func (a *HTTPOutboundCreatorAdapter) CreateOutbound(ctx context.Context, tenantI
 		return "", err
 	}
 	return result.Data.ID, nil
+}
+
+// HTTPStockDeductAdapter 通过 HTTP 调用 Inventory 服务按订单扣减库存
+type HTTPStockDeductAdapter struct {
+	inventoryURL string
+	client       *http.Client
+}
+
+func NewHTTPStockDeductAdapter(inventoryURL string) *HTTPStockDeductAdapter {
+	return &HTTPStockDeductAdapter{
+		inventoryURL: inventoryURL,
+		client:       &http.Client{Timeout: 10 * time.Second},
+	}
+}
+
+func (a *HTTPStockDeductAdapter) DeductStock(ctx context.Context, orderID, warehouseID string, skuQtys map[string]int) error {
+	_ = warehouseID
+	_ = skuQtys
+	body := map[string]interface{}{"order_id": orderID}
+	return a.postJSON(ctx, a.inventoryURL+"/api/v1/inventory/deduct-by-order", body)
+}
+
+func (a *HTTPStockDeductAdapter) postJSON(ctx context.Context, url string, body interface{}) error {
+	data, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := a.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode >= 300 {
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	return nil
 }

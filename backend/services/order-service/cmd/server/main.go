@@ -33,6 +33,7 @@ func main() {
 
 	var db *gorm.DB
 	var orderAppService *app.OrderAppService
+	var orderHandler *handler.OrderHandler
 	var publisher outbox.EventPublisher
 	database, dbErr := repository.NewDB(cfg.Database)
 	if dbErr != nil {
@@ -78,11 +79,14 @@ func main() {
 		}
 
 		stockAdapter := workflows.NewHTTPStockLockAdapter(inventoryURL)
+		deductAdapter := workflows.NewHTTPStockDeductAdapter(inventoryURL)
 		outboundAdapter := workflows.NewHTTPOutboundCreatorAdapter(warehouseURL)
 
 		coordinator := workflows.NewP4OutboundFlowCoordinator(outboxStore, outbox.NewPGInboxStore(db))
 		coordinator.SetStockHandler(stockAdapter)
+		coordinator.SetStockDeductHandler(deductAdapter)
 		coordinator.SetOutboundCreator(outboundAdapter)
+		coordinator.SetOrderStatusUpdater(app.NewLocalOrderStatusUpdater(orderRepo))
 
 		processor.RegisterHandler(&orderApprovedHandler{coordinator: coordinator})
 		processor.RegisterHandler(&orderCancelledHandler{coordinator: coordinator})
@@ -90,9 +94,13 @@ func main() {
 		ctx := context.Background()
 		go outbox.StartPolling(ctx, processor, log)
 		log.Info("Outbox 事件轮询已启动（订单审核→锁定库存→创建出库单）")
+
+		orderHandler = handler.NewOrderHandler(orderAppService).WithCoordinator(coordinator)
 	}
 
-	orderHandler := handler.NewOrderHandler(orderAppService)
+	if orderHandler == nil {
+		orderHandler = handler.NewOrderHandler(orderAppService)
+	}
 
 	if cfg.Server.Mode == "release" {
 		gin.SetMode(gin.ReleaseMode)

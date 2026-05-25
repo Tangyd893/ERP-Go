@@ -41,6 +41,7 @@ func (h *InventoryHandler) RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/lock", h.lockInventory)
 	router.POST("/release", h.releaseInventory)
 	router.POST("/deduct", h.deductInventory)
+	router.POST("/deduct-by-order", h.deductByOrder)
 	router.GET("/journals", h.listJournals)
 }
 
@@ -275,6 +276,31 @@ func (h *InventoryHandler) deductInventory(c *gin.Context) {
 	}
 
 	response.Success(c, gin.H{"deducted": true})
+}
+
+func (h *InventoryHandler) deductByOrder(c *gin.Context) {
+	var req struct {
+		OrderID string `json:"order_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		return
+	}
+
+	if h.mockEnabled {
+		response.Success(c, gin.H{"deducted": true, "order_id": req.OrderID})
+		return
+	}
+
+	if err := h.repo.DeductByOrderID(c.Request.Context(), req.OrderID); err != nil {
+		if bizErr, ok := err.(*sharedErrors.BusinessError); ok {
+			response.BusinessError(c, bizErr)
+		} else {
+			response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, err.Error())
+		}
+		return
+	}
+	response.Success(c, gin.H{"deducted": true, "order_id": req.OrderID})
 }
 
 func (h *InventoryHandler) deductInventoryMock(c *gin.Context) {

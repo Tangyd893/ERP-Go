@@ -48,6 +48,9 @@ lint: ## 代码检查 (go vet)
 verify: ## 统一验证 (Go + 前端)
 	bash scripts/verify.sh
 
+migrate: ## 执行数据库迁移 (需 psql)
+	bash scripts/migrate.sh
+
 clean: ## 清理构建产物
 	rm -f coverage.out coverage.html
 

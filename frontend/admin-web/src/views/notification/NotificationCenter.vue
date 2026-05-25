@@ -17,26 +17,20 @@ const total = ref(0);
 const loading = ref(false);
 const unreadCount = ref(0);
 
-const mockNotifications = ref([
-  { id: "1", title: "订单审核提醒", content: "有3条订单待审核", type: "info", read: false, created_at: "2026-05-21 10:00" },
-  { id: "2", title: "库存告警", content: "SKU TSHIRT-002 库存低于安全值", type: "warning", read: false, created_at: "2026-05-21 09:30" },
-  { id: "3", title: "出库完成", content: "订单 AMZ-20260520-004 已出库", type: "success", read: true, created_at: "2026-05-20 17:00" },
-]);
-
 async function fetchNotifications(page: number = 1, pageSize: number = 10) {
   loading.value = true;
   try {
     const res = await apiClient.get<ApiResponse<PageData<Notification>>>(
-      "/notifications",
+      "/notification/list",
       { params: { page, page_size: pageSize } }
     );
-    notifications.value = res.data.data.list;
-    total.value = res.data.data.total;
+    notifications.value = res.data.data?.list ?? [];
+    total.value = res.data.data?.total ?? 0;
     unreadCount.value = notifications.value.filter((n) => !n.read).length;
   } catch {
-    notifications.value = mockNotifications.value;
-    total.value = mockNotifications.value.length;
-    unreadCount.value = mockNotifications.value.filter((n) => !n.read).length;
+    notifications.value = [];
+    total.value = 0;
+    unreadCount.value = 0;
   } finally {
     loading.value = false;
   }

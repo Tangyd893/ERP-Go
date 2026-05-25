@@ -34,6 +34,11 @@ func main() {
 		log.Info("数据库连接成功")
 		db = database
 		appService = app.NewWarehouseAppService(repository.NewWarehouseRepository(db))
+		orderURL := os.Getenv("ORDER_SERVICE_URL")
+		if orderURL == "" {
+			orderURL = "http://localhost:8085"
+		}
+		appService.WithFulfillmentClient(app.NewOrderFulfillmentClient(orderURL))
 	}
 	wh := handler.NewWarehouseHandler(appService)
 

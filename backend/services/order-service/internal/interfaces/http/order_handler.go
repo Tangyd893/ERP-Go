@@ -5,15 +5,19 @@ import (
 	"strconv"
 
 	"github.com/Tangyd893/ERP-Go/backend/services/order-service/internal/app"
+	sharedEvents "github.com/Tangyd893/ERP-Go/backend/shared/events"
 	sharedErrors "github.com/Tangyd893/ERP-Go/backend/shared/errors"
+	"github.com/Tangyd893/ERP-Go/backend/shared/outbox"
 	"github.com/Tangyd893/ERP-Go/backend/shared/response"
+	"github.com/Tangyd893/ERP-Go/backend/shared/workflows"
 	"github.com/gin-gonic/gin"
 )
 
 // OrderHandler 订单 HTTP 处理器
 type OrderHandler struct {
-	appService   *app.OrderAppService
-	fallbackMode bool
+	appService    *app.OrderAppService
+	coordinator   *workflows.P4OutboundFlowCoordinator
+	fallbackMode  bool
 }
 
 func NewOrderHandler(appService *app.OrderAppService) *OrderHandler {
@@ -23,12 +27,18 @@ func NewOrderHandler(appService *app.OrderAppService) *OrderHandler {
 	}
 }
 
+func (h *OrderHandler) WithCoordinator(coordinator *workflows.P4OutboundFlowCoordinator) *OrderHandler {
+	h.coordinator = coordinator
+	return h
+}
+
 func (h *OrderHandler) RegisterRoutes(router *gin.RouterGroup) {
 	router.GET("/orders", h.listOrders)
 	router.GET("/orders/:id", h.getOrder)
 	router.POST("/orders/audit", h.auditOrder)
 	router.POST("/orders/abnormal", h.markAbnormal)
 	router.POST("/orders/cancel", h.cancelOrder)
+	router.POST("/fulfillment/outbound-shipped", h.outboundShipped)
 }
 
 func (h *OrderHandler) listOrders(c *gin.Context) {
@@ -155,4 +165,30 @@ func (h *OrderHandler) cancelOrder(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"cancelled": true})
+}
+
+func (h *OrderHandler) outboundShipped(c *gin.Context) {
+	if h.fallbackMode || h.coordinator == nil {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通，履约协调器未就绪"})
+		return
+	}
+
+	var data workflows.OutboundShippedData
+	if err := c.ShouldBindJSON(&data); err != nil {
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		return
+	}
+
+	payload, err := outbox.NewEventPayload(sharedEvents.EventOutboundShipped, data)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, err.Error())
+		return
+	}
+
+	messageID := "ship-" + data.OutboundID
+	if err := h.coordinator.HandleOutboundShipped(c.Request.Context(), messageID, payload); err != nil {
+		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "出库履约处理失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"processed": true, "order_id": data.OrderID})
 }

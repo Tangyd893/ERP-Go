@@ -4,19 +4,23 @@ import { apiClient } from "@erp/shared";
 import type { ApiResponse, PageData } from "@erp/shared";
 
 interface OrderRecord {
-  order_id: string;
-  order_no: string;
+  id?: string;
+  order_id?: string;
+  order_no?: string;
+  platform_order_no?: string;
   status: string;
-  customer_name: string;
+  buyer_name?: string;
+  customer_name?: string;
   total_amount: number;
   created_at: string;
-  items: OrderItem[];
+  items?: OrderItem[];
 }
 
 interface OrderItem {
   sku_id: string;
   sku_name: string;
-  qty: number;
+  qty?: number;
+  quantity?: number;
   unit_price: number;
 }
 
@@ -36,7 +40,7 @@ export const useOrderStore = defineStore("order", () => {
     loading.value = true;
     try {
       const res = await apiClient.get<ApiResponse<PageData<OrderRecord>>>(
-        "/orders",
+        "/order/orders",
         { params }
       );
       orders.value = res.data.data.list;
@@ -47,17 +51,17 @@ export const useOrderStore = defineStore("order", () => {
   }
 
   async function auditOrder(orderId: string, approved: boolean) {
-    const res = await apiClient.post<ApiResponse<OrderRecord>>(
-      `/orders/${orderId}/audit`,
-      { approved }
+    const res = await apiClient.post<ApiResponse<{ approved: boolean }>>(
+      "/order/orders/audit",
+      { order_id: orderId, approved }
     );
     return res.data.data;
   }
 
   async function cancelOrder(orderId: string, reason: string) {
-    const res = await apiClient.post<ApiResponse<OrderRecord>>(
-      `/orders/${orderId}/cancel`,
-      { reason }
+    const res = await apiClient.post<ApiResponse<{ cancelled: boolean }>>(
+      "/order/orders/cancel",
+      { order_id: orderId, reason }
     );
     return res.data.data;
   }

@@ -13,6 +13,30 @@ const routes = [
     component: () => import("@/views/Home.vue"),
     meta: { title: "PDA 首页" },
   },
+  {
+    path: "/pick",
+    name: "PickList",
+    component: () => import("@/views/PickList.vue"),
+    meta: { title: "拣货任务" },
+  },
+  {
+    path: "/pick/scan",
+    name: "PickScan",
+    component: () => import("@/views/PickScan.vue"),
+    meta: { title: "拣货扫码" },
+  },
+  {
+    path: "/check",
+    name: "CheckScan",
+    component: () => import("@/views/CheckScan.vue"),
+    meta: { title: "复核" },
+  },
+  {
+    path: "/ship",
+    name: "ShipConfirm",
+    component: () => import("@/views/ShipConfirm.vue"),
+    meta: { title: "出库确认" },
+  },
 ];
 
 const router = createRouter({

@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Tangyd893/ERP-Go/backend/services/warehouse-service/internal/domain"
 	"gorm.io/gorm"
@@ -32,6 +33,18 @@ func (r *WarehouseRepository) CreateOutbound(ctx context.Context, order *domain.
 				SKUCode: item.SKUCode, SKUName: item.SKUName,
 				Quantity: item.Quantity, PickedQty: item.PickedQty,
 				CheckedQty: item.CheckedQty, LocationID: item.LocationID,
+			}).Error; err != nil {
+				return err
+			}
+			taskID := fmt.Sprintf("PT-%s-%s", order.ID, item.SKUID)
+			if item.ID != "" {
+				taskID = "PT-" + item.ID
+			}
+			if err := tx.Create(&PickTaskModel{
+				ID: taskID, OutboundID: order.ID, SKUID: item.SKUID,
+				SKUCode: item.SKUCode, SKUName: item.SKUName,
+				Quantity: item.Quantity, Status: "pending",
+				LocationCode: item.LocationID,
 			}).Error; err != nil {
 				return err
 			}

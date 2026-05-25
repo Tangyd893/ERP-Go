@@ -25,6 +25,8 @@ func NewWarehouseHandler(appService *app.WarehouseAppService) *WarehouseHandler 
 func (h *WarehouseHandler) RegisterRoutes(router *gin.RouterGroup) {
 	router.GET("/outbounds", h.listOutbounds)
 	router.POST("/outbounds", h.createOutbound)
+	router.GET("/outbounds/:id", h.getOutbound)
+	router.POST("/outbounds/:id/ship", h.confirmShip)
 	router.GET("/pick-tasks", h.listPickTasks)
 	router.POST("/pick/scan", h.pickScan)
 	router.POST("/check/scan", h.checkScan)
@@ -53,21 +55,59 @@ func (h *WarehouseHandler) createOutbound(c *gin.Context) {
 		OrderID     string `json:"order_id" binding:"required"`
 		OrderNo     string `json:"order_no" binding:"required"`
 		WarehouseID string `json:"warehouse_id" binding:"required"`
+		Items       []struct {
+			SKUID    string `json:"sku_id"`
+			SKUCode  string `json:"sku_code"`
+			SKUName  string `json:"sku_name"`
+			Quantity int    `json:"quantity"`
+		} `json:"items"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
 		return
 	}
+	now := time.Now()
+	items := make([]*domain.OutboundItem, 0, len(req.Items))
+	for i, it := range req.Items {
+		items = append(items, &domain.OutboundItem{
+			ID: fmt.Sprintf("OI%d-%d", now.UnixNano(), i),
+			SKUID: it.SKUID, SKUCode: it.SKUCode, SKUName: it.SKUName, Quantity: it.Quantity,
+		})
+	}
 	order := &domain.OutboundOrder{
-		ID: fmt.Sprintf("OB%d", time.Now().UnixNano()), TenantID: c.GetString("tenant_id"),
+		ID: fmt.Sprintf("OB%d", now.UnixNano()), TenantID: c.GetString("tenant_id"),
 		OrderID: req.OrderID, OrderNo: req.OrderNo, WarehouseID: req.WarehouseID,
-		Status: domain.OutboundCreated, CreatedAt: time.Now(), UpdatedAt: time.Now(),
+		Status: domain.OutboundPicking, Items: items, CreatedAt: now, UpdatedAt: now,
 	}
 	if err := h.appService.CreateOutbound(c.Request.Context(), order); err != nil {
 		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "创建出库单失败: "+err.Error())
 		return
 	}
 	response.Success(c, order)
+}
+
+func (h *WarehouseHandler) getOutbound(c *gin.Context) {
+	if h.fallbackMode { response.Error(c, http.StatusNotFound, sharedErrors.CodeInvalidParameter, "出库单不存在"); return }
+	order, err := h.appService.GetOutbound(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusNotFound, sharedErrors.CodeInvalidParameter, "出库单不存在")
+		return
+	}
+	response.Success(c, order)
+}
+
+func (h *WarehouseHandler) confirmShip(c *gin.Context) {
+	if h.fallbackMode { c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通"}); return }
+	var req struct {
+		TrackingNo string `json:"tracking_no"`
+		Carrier    string `json:"carrier"`
+	}
+	_ = c.ShouldBindJSON(&req)
+	if err := h.appService.ConfirmShip(c.Request.Context(), c.Param("id"), req.TrackingNo, req.Carrier); err != nil {
+		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "出库确认失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"shipped": true})
 }
 
 func (h *WarehouseHandler) listPickTasks(c *gin.Context) {

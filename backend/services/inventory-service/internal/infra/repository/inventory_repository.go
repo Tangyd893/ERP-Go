@@ -178,7 +178,7 @@ func (r *InventoryRepository) ReleaseStock(ctx context.Context, lockKey string, 
 	})
 }
 
-// DeductStock 扣减库存
+// DeductStock 按 lock_key 扣减库存
 func (r *InventoryRepository) DeductStock(ctx context.Context, lockKey string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var lockModel InventoryLockModel
@@ -222,6 +222,23 @@ func (r *InventoryRepository) DeductStock(ctx context.Context, lockKey string) e
 
 		return nil
 	})
+}
+
+// DeductByOrderID 按订单扣减所有有效锁定（出库确认）
+func (r *InventoryRepository) DeductByOrderID(ctx context.Context, orderID string) error {
+	locks, err := r.FindLocksByOrderID(ctx, orderID)
+	if err != nil {
+		return err
+	}
+	for _, lock := range locks {
+		if lock.Status == "deducted" || lock.Status == "released" {
+			continue
+		}
+		if err := r.DeductStock(ctx, lock.LockKey); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // FindLocksByOrderID 按订单ID查询锁定记录
