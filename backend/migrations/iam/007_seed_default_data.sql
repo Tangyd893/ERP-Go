@@ -1,3 +1,4 @@
+-- DEPRECATED: 归档快照，不参与数据库迁移。业务种子数据请使用 iam-service/migrations/002_seed_dev_admin.sql
 -- 初始化默认超级管理员和基础数据
 -- 密码为 "admin123"，bcrypt 哈希
 

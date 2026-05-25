@@ -19,6 +19,7 @@ spec:
       labels:
         app: api-gateway
     spec:
+      serviceAccountName: api-gateway
       containers:
         - name: api-gateway
           image: erp-go/gateway:latest
@@ -28,7 +29,7 @@ spec:
             - name: ENVIRONMENT
               value: "production"
             - name: SERVICE_TARGET_IAM
-              value: "http://iam-service:8081"
+              value: "http://iam-service.erp-go.svc.cluster.local:8081"
           resources:
             requests:
               cpu: "100m"

@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: api-gateway
+  namespace: erp-go
+automountServiceAccountToken: false
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: api-gateway-reader
+  namespace: erp-go
+rules:
+  - apiGroups: [""]
+    resources: ["services", "endpoints"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: api-gateway-reader-binding
+  namespace: erp-go
+subjects:
+  - kind: ServiceAccount
+    name: api-gateway
+    namespace: erp-go
+roleRef:
+  kind: Role
+  name: api-gateway-reader
+  apiGroup: rbac.authorization.k8s.io

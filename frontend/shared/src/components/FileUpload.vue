@@ -26,15 +26,15 @@ const emit = defineEmits<{
 
 const uploadRef = ref<UploadInstance>();
 
-const handleExceed: UploadProps["onExceed"] = (files) => {
+const handleExceed: UploadProps["onExceed"] = (files: File[]) => {
   emit("exceed", files);
 };
 
-const handleSuccess: UploadProps["onSuccess"] = (response, file, fileList) => {
+const handleSuccess: UploadProps["onSuccess"] = (response: unknown, file: UploadFile, fileList: UploadFile[]) => {
   emit("success", file, fileList);
 };
 
-const handleError: UploadProps["onError"] = (error, file) => {
+const handleError: UploadProps["onError"] = (error: Error, file: UploadFile) => {
   emit("error", error, file);
 };
 </script>
