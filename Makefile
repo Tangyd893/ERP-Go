@@ -1,4 +1,4 @@
-.PHONY: help dev build build-all test test-cover lint clean frontend-dev frontend-build frontend-typecheck all
+.PHONY: help dev build build-all test test-cover lint verify clean frontend-dev frontend-build frontend-typecheck all
 
 CACHE_DIR := $(shell pwd)/.cache
 GO_CACHE := $(CACHE_DIR)/go-build
@@ -10,6 +10,7 @@ help: ## 显示帮助信息
 	@echo "  make build                编译所有 Go 服务"
 	@echo "  make test                 运行所有单元测试"
 	@echo "  make lint                 代码检查 (go vet)"
+	@echo "  make verify               统一验证 (Go vet/test/build + 前端 typecheck/build)"
 	@echo "  make frontend-build       编译所有前端应用"
 	@echo "  make frontend-typecheck   前端类型检查"
 	@echo "  make frontend-dev         启动 admin-web 开发服务"
@@ -43,6 +44,9 @@ test-cover: ## 运行测试并生成覆盖率报告
 
 lint: ## 代码检查 (go vet)
 	mkdir -p $(GO_CACHE) $(GO_MOD_CACHE) && GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go vet -C backend ./...
+
+verify: ## 统一验证 (Go + 前端)
+	bash scripts/verify.sh
 
 clean: ## 清理构建产物
 	rm -f coverage.out coverage.html

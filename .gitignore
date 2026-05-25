@@ -47,4 +47,5 @@ uploads/
 exports/
 tmp/
 
-server
+# 根目录编译产物（勿用裸 `server`，会误忽略 cmd/server/）
+/server
