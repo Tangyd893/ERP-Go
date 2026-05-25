@@ -9,17 +9,26 @@ import (
 	"github.com/Tangyd893/ERP-Go/backend/services/warehouse-service/internal/app"
 	"github.com/Tangyd893/ERP-Go/backend/services/warehouse-service/internal/domain"
 	sharedErrors "github.com/Tangyd893/ERP-Go/backend/shared/errors"
+	sharedEvents "github.com/Tangyd893/ERP-Go/backend/shared/events"
+	"github.com/Tangyd893/ERP-Go/backend/shared/outbox"
 	"github.com/Tangyd893/ERP-Go/backend/shared/response"
+	"github.com/Tangyd893/ERP-Go/backend/shared/workflows"
 	"github.com/gin-gonic/gin"
 )
 
 type WarehouseHandler struct {
 	appService   *app.WarehouseAppService
+	coordinator  *workflows.P4OutboundFlowCoordinator
 	fallbackMode bool
 }
 
 func NewWarehouseHandler(appService *app.WarehouseAppService) *WarehouseHandler {
 	return &WarehouseHandler{appService: appService, fallbackMode: appService == nil}
+}
+
+func (h *WarehouseHandler) WithCoordinator(coordinator *workflows.P4OutboundFlowCoordinator) *WarehouseHandler {
+	h.coordinator = coordinator
+	return h
 }
 
 func (h *WarehouseHandler) RegisterRoutes(router *gin.RouterGroup) {
@@ -33,6 +42,7 @@ func (h *WarehouseHandler) RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/package", h.createPackage)
 	router.POST("/weigh", h.weigh)
 	router.GET("/locations", h.listLocations)
+	router.POST("/inbound/received", h.inboundReceived)
 }
 
 func (h *WarehouseHandler) listOutbounds(c *gin.Context) {
@@ -203,4 +213,30 @@ func (h *WarehouseHandler) listLocations(c *gin.Context) {
 		return
 	}
 	response.Success(c, whs)
+}
+
+func (h *WarehouseHandler) inboundReceived(c *gin.Context) {
+	if h.coordinator == nil {
+		response.Error(c, http.StatusServiceUnavailable, sharedErrors.CodeInternalError, "入库协调器未就绪")
+		return
+	}
+
+	var data workflows.InboundReceivedData
+	if err := c.ShouldBindJSON(&data); err != nil {
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		return
+	}
+
+	payload, err := outbox.NewEventPayload(sharedEvents.EventStockIncreased, data)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, err.Error())
+		return
+	}
+
+	messageID := "inbound-" + data.PurchaseID
+	if err := h.coordinator.HandleInboundReceived(c.Request.Context(), messageID, payload); err != nil {
+		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "入库处理失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"processed": true, "purchase_id": data.PurchaseID})
 }

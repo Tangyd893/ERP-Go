@@ -165,3 +165,49 @@ func (a *HTTPStockDeductAdapter) postJSON(ctx context.Context, url string, body 
 	}
 	return nil
 }
+
+// HTTPInboundHandlerAdapter 通过 HTTP 调用 Inventory 服务增加库存（采购入库）
+type HTTPInboundHandlerAdapter struct {
+	inventoryURL string
+	client       *http.Client
+}
+
+func NewHTTPInboundHandlerAdapter(inventoryURL string) *HTTPInboundHandlerAdapter {
+	return &HTTPInboundHandlerAdapter{
+		inventoryURL: inventoryURL,
+		client:       &http.Client{Timeout: 10 * time.Second},
+	}
+}
+
+func (a *HTTPInboundHandlerAdapter) ReceiveInbound(ctx context.Context, tenantID, purchaseID, warehouseID, supplierID string, items []OrderItemData) (string, error) {
+	inboundID := fmt.Sprintf("IN-%s-%d", purchaseID, time.Now().Unix())
+	for _, item := range items {
+		body := map[string]interface{}{
+			"sku_id":       item.SKUID,
+			"warehouse_id": warehouseID,
+			"quantity":     item.Qty,
+			"inbound_id":   inboundID,
+			"idempotency_key": fmt.Sprintf("inbound-%s-%s", inboundID, item.SKUID),
+		}
+		_ = tenantID
+		_ = supplierID
+		data, err := json.Marshal(body)
+		if err != nil {
+			return "", fmt.Errorf("序列化入库请求失败 sku=%s: %w", item.SKUID, err)
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodPost, a.inventoryURL+"/api/v1/inventory/increase", bytes.NewReader(data))
+		if err != nil {
+			return "", fmt.Errorf("创建入库请求失败 sku=%s: %w", item.SKUID, err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := a.client.Do(req)
+		if err != nil {
+			return "", fmt.Errorf("调用库存服务增加接口失败 sku=%s: %w", item.SKUID, err)
+		}
+		resp.Body.Close()
+		if resp.StatusCode >= 300 {
+			return "", fmt.Errorf("增加库存失败 sku=%s: HTTP %d", item.SKUID, resp.StatusCode)
+		}
+	}
+	return inboundID, nil
+}

@@ -17,6 +17,7 @@ import (
 type OrderHandler struct {
 	appService    *app.OrderAppService
 	coordinator   *workflows.P4OutboundFlowCoordinator
+	outboxStore   outbox.OutboxStore
 	fallbackMode  bool
 }
 
@@ -32,6 +33,11 @@ func (h *OrderHandler) WithCoordinator(coordinator *workflows.P4OutboundFlowCoor
 	return h
 }
 
+func (h *OrderHandler) WithOutboxStore(store outbox.OutboxStore) *OrderHandler {
+	h.outboxStore = store
+	return h
+}
+
 func (h *OrderHandler) RegisterRoutes(router *gin.RouterGroup) {
 	router.GET("/orders", h.listOrders)
 	router.GET("/orders/:id", h.getOrder)
@@ -39,6 +45,7 @@ func (h *OrderHandler) RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/orders/abnormal", h.markAbnormal)
 	router.POST("/orders/cancel", h.cancelOrder)
 	router.POST("/fulfillment/outbound-shipped", h.outboundShipped)
+	router.GET("/outbox/failed", h.listFailedOutbox)
 }
 
 func (h *OrderHandler) listOrders(c *gin.Context) {
@@ -191,4 +198,54 @@ func (h *OrderHandler) outboundShipped(c *gin.Context) {
 		return
 	}
 	response.Success(c, gin.H{"processed": true, "order_id": data.OrderID})
+}
+
+func (h *OrderHandler) listFailedOutbox(c *gin.Context) {
+	if h.outboxStore == nil {
+		response.Error(c, http.StatusServiceUnavailable, sharedErrors.CodeInternalError, "Outbox 存储未就绪")
+		return
+	}
+
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 || pageSize > 100 {
+		pageSize = 20
+	}
+	offset := (page - 1) * pageSize
+
+	messages, total, err := h.outboxStore.FetchFailed(c.Request.Context(), offset, pageSize)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "查询失败消息失败: "+err.Error())
+		return
+	}
+
+	type FailedItem struct {
+		ID            int64  `json:"id"`
+		AggregateID   string `json:"aggregate_id"`
+		AggregateType string `json:"aggregate_type"`
+		TenantID      string `json:"tenant_id"`
+		EventType     string `json:"event_type"`
+		RetryCount    int    `json:"retry_count"`
+		CreatedAt     string `json:"created_at"`
+		Status        string `json:"status"`
+	}
+
+	items := make([]FailedItem, 0, len(messages))
+	for _, msg := range messages {
+		items = append(items, FailedItem{
+			ID:            msg.ID,
+			AggregateID:   msg.AggregateID,
+			AggregateType: msg.AggregateType,
+			TenantID:      msg.TenantID,
+			EventType:     msg.EventType,
+			RetryCount:    msg.RetryCount,
+			CreatedAt:     msg.CreatedAt.Format("2006-01-02T15:04:05Z"),
+			Status:        string(msg.Status),
+		})
+	}
+
+	response.PageSuccess(c, items, total, page, pageSize)
 }

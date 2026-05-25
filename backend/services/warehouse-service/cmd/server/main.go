@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -15,6 +16,8 @@ import (
 	"github.com/Tangyd893/ERP-Go/backend/shared/config"
 	"github.com/Tangyd893/ERP-Go/backend/shared/logger"
 	"github.com/Tangyd893/ERP-Go/backend/shared/middleware"
+	"github.com/Tangyd893/ERP-Go/backend/shared/outbox"
+	"github.com/Tangyd893/ERP-Go/backend/shared/workflows"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -22,7 +25,9 @@ import (
 func main() {
 	cfg, _ := config.Load("")
 	cfg.Server.Name = "warehouse-service"
-	if cfg.Server.Port == 0 || cfg.Server.Port == 8080 { cfg.Server.Port = 8087 }
+	if cfg.Server.Port == 0 || cfg.Server.Port == 8080 {
+		cfg.Server.Port = 8087
+	}
 	log := logger.New(cfg.Log.Level, cfg.Log.Format, cfg.Log.Output, cfg.Server.Name, os.Getenv("ENVIRONMENT"))
 
 	var db *gorm.DB
@@ -40,14 +45,43 @@ func main() {
 		}
 		appService.WithFulfillmentClient(app.NewOrderFulfillmentClient(orderURL))
 	}
+
 	wh := handler.NewWarehouseHandler(appService)
 
-	if cfg.Server.Mode == "release" { gin.SetMode(gin.ReleaseMode) }
+	if db != nil {
+		outboxStore := outbox.NewPGOutboxStore(db)
+		inboxStore := outbox.NewPGInboxStore(db)
+
+		inventoryURL := os.Getenv("INVENTORY_SERVICE_URL")
+		if inventoryURL == "" {
+			inventoryURL = "http://localhost:8086"
+		}
+
+		inboundAdapter := workflows.NewHTTPInboundHandlerAdapter(inventoryURL)
+
+		coordinator := workflows.NewP4OutboundFlowCoordinator(outboxStore, inboxStore)
+		coordinator.SetInboundHandler(inboundAdapter)
+
+		processor := outbox.NewOutboxProcessor(outboxStore, outbox.NewLogPublisher(log), 10, 5*time.Second)
+		processor.RegisterHandler(&inboundReceivedHandler{coordinator: coordinator})
+
+		ctx := context.Background()
+		go outbox.StartPolling(ctx, processor, log)
+		log.Info("Outbox 事件轮询已启动（采购入库）")
+
+		wh.WithCoordinator(coordinator)
+	}
+
+	if cfg.Server.Mode == "release" {
+		gin.SetMode(gin.ReleaseMode)
+	}
 	engine := gin.New()
 	engine.Use(middleware.Recovery(log), middleware.RequestID(), middleware.TraceID(), middleware.TenantID(), middleware.CORS(), middleware.RequestLogger(log))
 	engine.GET("/health", func(c *gin.Context) {
 		status := "ok"
-		if db == nil { status = "degraded" }
+		if db == nil {
+			status = "degraded"
+		}
 		c.JSON(http.StatusOK, gin.H{"status": status, "service": cfg.Server.Name, "db": db != nil})
 	})
 	wh.RegisterRoutes(engine.Group("/api/v1/warehouse"))
@@ -66,7 +100,23 @@ func main() {
 	log.Info("正在关闭 WMS 仓储服务...")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if db != nil { if sqlDB, _ := db.DB(); sqlDB != nil { sqlDB.Close() } }
-	if err := srv.Shutdown(ctx); err != nil { log.Errorf("WMS 仓储服务关闭异常: %v", err) }
+	if db != nil {
+		if sqlDB, _ := db.DB(); sqlDB != nil {
+			sqlDB.Close()
+		}
+	}
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Errorf("WMS 仓储服务关闭异常: %v", err)
+	}
 	log.Info("WMS 仓储服务已关闭")
+}
+
+type inboundReceivedHandler struct {
+	coordinator *workflows.P4OutboundFlowCoordinator
+}
+
+func (h *inboundReceivedHandler) EventType() string { return "inventory.increased" }
+
+func (h *inboundReceivedHandler) Handle(ctx context.Context, msg *outbox.OutboxMessage) error {
+	return h.coordinator.HandleInboundReceived(ctx, strconv.FormatInt(msg.ID, 10), msg.Payload)
 }

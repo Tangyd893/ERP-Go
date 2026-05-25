@@ -1,6 +1,7 @@
 package http
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"sync"
@@ -42,6 +43,7 @@ func (h *InventoryHandler) RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/release", h.releaseInventory)
 	router.POST("/deduct", h.deductInventory)
 	router.POST("/deduct-by-order", h.deductByOrder)
+	router.POST("/increase", h.increaseInventory)
 	router.GET("/journals", h.listJournals)
 }
 
@@ -360,4 +362,62 @@ func (h *InventoryHandler) listJournalsMock(c *gin.Context) {
 		{ID: "j-1", SKUID: defaultSKU, ChangeType: "lock", ChangeQty: 10, BeforeTotal: 500, AfterTotal: 500, BeforeLocked: 0, AfterLocked: 10, BeforeAvail: 500, AfterAvail: 490},
 	}
 	response.PageSuccess(c, journals, int64(len(journals)), page, pageSize)
+}
+
+func (h *InventoryHandler) increaseInventory(c *gin.Context) {
+	var req struct {
+		SKUID          string `json:"sku_id" binding:"required"`
+		WarehouseID    string `json:"warehouse_id" binding:"required"`
+		Quantity       int    `json:"quantity" binding:"required"`
+		InboundID      string `json:"inbound_id"`
+		IdempotencyKey string `json:"idempotency_key"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		return
+	}
+
+	if h.mockEnabled {
+		h.mu.Lock()
+		bal, ok := h.mockBalances[req.SKUID]
+		if ok {
+			bal.TotalQuantity += req.Quantity
+			bal.Version++
+		} else {
+			bal = &domain.InventoryBalance{
+				ID: req.SKUID + "-" + req.WarehouseID,
+				TenantID: "default", WarehouseID: req.WarehouseID,
+				SKUID: req.SKUID, TotalQuantity: req.Quantity, Version: 1,
+			}
+			h.mockBalances[req.SKUID] = bal
+		}
+		h.mu.Unlock()
+		response.Success(c, gin.H{"increased": true, "sku_id": req.SKUID, "quantity": req.Quantity})
+		return
+	}
+
+	tenantID := c.GetString("tenant_id")
+	if tenantID == "" {
+		tenantID = "default"
+	}
+
+	journal := &domain.InventoryJournal{
+		ID:          fmt.Sprintf("j-inc-%s-%s-%d", req.WarehouseID, req.SKUID, time.Now().UnixNano()),
+		TenantID:    tenantID,
+		WarehouseID: req.WarehouseID,
+		SKUID:       req.SKUID,
+		OrderID:     req.InboundID,
+		ChangeType:  "increase",
+		ChangeQty:   req.Quantity,
+		CreatedAt:   time.Now(),
+	}
+	if req.IdempotencyKey != "" {
+		journal.IdempotencyKey = req.IdempotencyKey
+	}
+
+	if err := h.repo.IncreaseStock(c.Request.Context(), journal); err != nil {
+		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "增加库存失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"increased": true, "sku_id": req.SKUID, "quantity": req.Quantity})
 }

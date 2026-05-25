@@ -65,6 +65,26 @@ func (s *MemOutboxStore) MarkFailed(ctx context.Context, id int64, err error) er
 	return nil
 }
 
+func (s *MemOutboxStore) FetchFailed(ctx context.Context, offset, limit int) ([]*OutboxMessage, int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var failed []*OutboxMessage
+	for _, msg := range s.messages {
+		if msg.Status == StatusFailed {
+			failed = append(failed, msg)
+		}
+	}
+	total := int64(len(failed))
+	if offset >= len(failed) {
+		return nil, total, nil
+	}
+	end := offset + limit
+	if end > len(failed) {
+		end = len(failed)
+	}
+	return failed[offset:end], total, nil
+}
+
 // MemInboxStore 内存实现的 InboxStore，仅供测试使用
 type MemInboxStore struct {
 	mu       sync.Mutex

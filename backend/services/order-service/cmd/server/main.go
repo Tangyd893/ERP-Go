@@ -14,6 +14,7 @@ import (
 	"github.com/Tangyd893/ERP-Go/backend/services/order-service/internal/infra/repository"
 	handler "github.com/Tangyd893/ERP-Go/backend/services/order-service/internal/interfaces/http"
 	"github.com/Tangyd893/ERP-Go/backend/shared/config"
+	"github.com/Tangyd893/ERP-Go/backend/shared/events"
 	"github.com/Tangyd893/ERP-Go/backend/shared/logger"
 	"github.com/Tangyd893/ERP-Go/backend/shared/middleware"
 	"github.com/Tangyd893/ERP-Go/backend/shared/outbox"
@@ -35,6 +36,7 @@ func main() {
 	var orderAppService *app.OrderAppService
 	var orderHandler *handler.OrderHandler
 	var publisher outbox.EventPublisher
+	var fulfillmentConsumer *outbox.RabbitMQConsumer
 	database, dbErr := repository.NewDB(cfg.Database)
 	if dbErr != nil {
 		log.Warnf("数据库连接失败，使用占位模式: %v", dbErr)
@@ -95,7 +97,28 @@ func main() {
 		go outbox.StartPolling(ctx, processor, log)
 		log.Info("Outbox 事件轮询已启动（订单审核→锁定库存→创建出库单）")
 
-		orderHandler = handler.NewOrderHandler(orderAppService).WithCoordinator(coordinator)
+		if rabbitURL != "" {
+			inboxStore := outbox.NewPGInboxStore(db)
+			consumer, consumerErr := outbox.NewRabbitMQConsumer(
+				ctx, rabbitURL, "order.fulfillment",
+				[]string{events.EventOutboundShipped},
+				func(cctx context.Context, eventType, messageID string, payload []byte) error {
+					if eventType != events.EventOutboundShipped {
+						return nil
+					}
+					return coordinator.HandleOutboundShipped(cctx, messageID, payload)
+				},
+				inboxStore, log,
+			)
+			if consumerErr != nil {
+				log.Warnf("RabbitMQ 履约消费者启动失败: %v", consumerErr)
+			} else {
+				fulfillmentConsumer = consumer
+				log.Info("RabbitMQ 履约消费者已启动: queue=order.fulfillment")
+			}
+		}
+
+		orderHandler = handler.NewOrderHandler(orderAppService).WithCoordinator(coordinator).WithOutboxStore(outboxStore)
 	}
 
 	if orderHandler == nil {
@@ -141,6 +164,9 @@ func main() {
 		if closer, ok := publisher.(interface{ Close() error }); ok {
 			closer.Close()
 		}
+	}
+	if fulfillmentConsumer != nil {
+		fulfillmentConsumer.Close()
 	}
 	if db != nil {
 		if sqlDB, err := db.DB(); err == nil {

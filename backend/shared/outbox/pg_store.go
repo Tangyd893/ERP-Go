@@ -100,6 +100,43 @@ func (s *PGOutboxStore) MarkFailed(ctx context.Context, id int64, err error) err
 	}).Error
 }
 
+func (s *PGOutboxStore) FetchFailed(ctx context.Context, offset, limit int) ([]*OutboxMessage, int64, error) {
+	var total int64
+	if err := s.db.WithContext(ctx).Model(&OutboxMessageModel{}).
+		Where("status = ?", string(StatusFailed)).
+		Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	var models []*OutboxMessageModel
+	err := s.db.WithContext(ctx).
+		Where("status = ?", string(StatusFailed)).
+		Order("created_at DESC").
+		Offset(offset).
+		Limit(limit).
+		Find(&models).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	messages := make([]*OutboxMessage, len(models))
+	for i, m := range models {
+		messages[i] = &OutboxMessage{
+			ID:            m.ID,
+			AggregateID:   m.AggregateID,
+			AggregateType: m.AggregateType,
+			TenantID:      m.TenantID,
+			EventType:     m.EventType,
+			Payload:       m.Payload,
+			Status:        MessageStatus(m.Status),
+			RetryCount:    m.RetryCount,
+			CreatedAt:     m.CreatedAt,
+			PublishedAt:   m.PublishedAt,
+		}
+	}
+	return messages, total, nil
+}
+
 // PGInboxStore PostgreSQL Inbox 存储实现
 type PGInboxStore struct {
 	db *gorm.DB
