@@ -163,60 +163,34 @@ func Load(configPath string) (*Config, error) {
 }
 
 func applyEnvOverrides(cfg *Config) {
-	if v := os.Getenv("SERVER_PORT"); v != "" {
+	setInt("SERVER_PORT", &cfg.Server.Port)
+	setString("SERVER_HOST", &cfg.Server.Host)
+	setString("SERVER_MODE", &cfg.Server.Mode)
+	setString("DATABASE_HOST", &cfg.Database.Host)
+	setInt("DATABASE_PORT", &cfg.Database.Port)
+	setString("DATABASE_USER", &cfg.Database.User)
+	setString("DATABASE_PASSWORD", &cfg.Database.Password)
+	setString("DATABASE_DBNAME", &cfg.Database.DBName)
+	setString("DATABASE_SSLMODE", &cfg.Database.SSLMode)
+	setString("REDIS_HOST", &cfg.Redis.Host)
+	setInt("REDIS_PORT", &cfg.Redis.Port)
+	setString("REDIS_PASSWORD", &cfg.Redis.Password)
+	setString("RABBITMQ_HOST", &cfg.RabbitMQ.Host)
+	setInt("RABBITMQ_PORT", &cfg.RabbitMQ.Port)
+	setString("LOG_LEVEL", &cfg.Log.Level)
+	setString("LOG_FORMAT", &cfg.Log.Format)
+}
+
+func setString(envKey string, target *string) {
+	if v := os.Getenv(envKey); v != "" {
+		*target = v
+	}
+}
+
+func setInt(envKey string, target *int) {
+	if v := os.Getenv(envKey); v != "" {
 		if port, err := strconv.Atoi(v); err == nil {
-			cfg.Server.Port = port
+			*target = port
 		}
-	}
-	if v := os.Getenv("SERVER_HOST"); v != "" {
-		cfg.Server.Host = v
-	}
-	if v := os.Getenv("SERVER_MODE"); v != "" {
-		cfg.Server.Mode = v
-	}
-	if v := os.Getenv("DATABASE_HOST"); v != "" {
-		cfg.Database.Host = v
-	}
-	if v := os.Getenv("DATABASE_PORT"); v != "" {
-		if port, err := strconv.Atoi(v); err == nil {
-			cfg.Database.Port = port
-		}
-	}
-	if v := os.Getenv("DATABASE_USER"); v != "" {
-		cfg.Database.User = v
-	}
-	if v := os.Getenv("DATABASE_PASSWORD"); v != "" {
-		cfg.Database.Password = v
-	}
-	if v := os.Getenv("DATABASE_DBNAME"); v != "" {
-		cfg.Database.DBName = v
-	}
-	if v := os.Getenv("DATABASE_SSLMODE"); v != "" {
-		cfg.Database.SSLMode = v
-	}
-	if v := os.Getenv("REDIS_HOST"); v != "" {
-		cfg.Redis.Host = v
-	}
-	if v := os.Getenv("REDIS_PORT"); v != "" {
-		if port, err := strconv.Atoi(v); err == nil {
-			cfg.Redis.Port = port
-		}
-	}
-	if v := os.Getenv("REDIS_PASSWORD"); v != "" {
-		cfg.Redis.Password = v
-	}
-	if v := os.Getenv("RABBITMQ_HOST"); v != "" {
-		cfg.RabbitMQ.Host = v
-	}
-	if v := os.Getenv("RABBITMQ_PORT"); v != "" {
-		if port, err := strconv.Atoi(v); err == nil {
-			cfg.RabbitMQ.Port = port
-		}
-	}
-	if v := os.Getenv("LOG_LEVEL"); v != "" {
-		cfg.Log.Level = v
-	}
-	if v := os.Getenv("LOG_FORMAT"); v != "" {
-		cfg.Log.Format = v
 	}
 }

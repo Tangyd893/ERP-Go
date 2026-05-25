@@ -182,8 +182,18 @@ func TestEventPayloadContract(t *testing.T) {
 	}
 }
 
-// TestAuthResponseContract 验证鉴权错误响应格式
+// TestAuthResponseContract 验证鉴权错误响应格式（表驱动）
 func TestAuthResponseContract(t *testing.T) {
+	testCases := []struct {
+		name     string
+		token    string
+		wantCode int
+		wantResp float64
+	}{
+		{"无令牌", "", http.StatusUnauthorized, 20000},
+		{"无效令牌", "Bearer invalid-token", http.StatusUnauthorized, 20002},
+	}
+
 	router := gin.New()
 	router.GET("/api/v1/order/orders", func(c *gin.Context) {
 		token := c.GetHeader("Authorization")
@@ -198,29 +208,22 @@ func TestAuthResponseContract(t *testing.T) {
 		c.JSON(http.StatusOK, gin.H{"code": 0, "data": []interface{}{}})
 	})
 
-	// 测试无令牌
-	req, _ := http.NewRequest("GET", "/api/v1/order/orders", nil)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("无令牌时应返回 401，实际 %d", w.Code)
-	}
-	var resp map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &resp)
-	if resp["code"].(float64) != 20000 {
-		t.Errorf("无令牌错误码应为 20000，实际 %v", resp["code"])
-	}
-
-	// 测试无效令牌
-	req, _ = http.NewRequest("GET", "/api/v1/order/orders", nil)
-	req.Header.Set("Authorization", "Bearer invalid-token")
-	w = httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-	if w.Code != http.StatusUnauthorized {
-		t.Errorf("无效令牌时应返回 401，实际 %d", w.Code)
-	}
-	json.Unmarshal(w.Body.Bytes(), &resp)
-	if resp["code"].(float64) != 20002 {
-		t.Errorf("无效令牌错误码应为 20002，实际 %v", resp["code"])
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req, _ := http.NewRequest("GET", "/api/v1/order/orders", nil)
+			if tc.token != "" {
+				req.Header.Set("Authorization", tc.token)
+			}
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			if w.Code != tc.wantCode {
+				t.Errorf("%s: 应返回 %d，实际 %d", tc.name, tc.wantCode, w.Code)
+			}
+			var resp map[string]interface{}
+			json.Unmarshal(w.Body.Bytes(), &resp)
+			if resp["code"].(float64) != tc.wantResp {
+				t.Errorf("%s: 错误码应为 %.0f，实际 %v", tc.name, tc.wantResp, resp["code"])
+			}
+		})
 	}
 }
