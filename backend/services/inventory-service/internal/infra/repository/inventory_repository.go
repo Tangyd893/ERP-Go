@@ -11,6 +11,15 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+const (
+	whereWarehouseSKU = "warehouse_id = ? AND sku_id = ?"
+	forUpdate         = "UPDATE"
+	errFindBalance    = "查询库存失败"
+	errCreateBalance  = "创建库存记录失败"
+	errUpdateBalance  = "更新库存余额失败"
+	errSaveJournal    = "写入库存流水失败"
+)
+
 // InventoryRepository GORM 实现的库存仓储
 type InventoryRepository struct {
 	db *gorm.DB
@@ -24,7 +33,7 @@ func NewInventoryRepository(db *gorm.DB) *InventoryRepository {
 func (r *InventoryRepository) FindBalance(ctx context.Context, warehouseID, skuID string) (*domain.InventoryBalance, error) {
 	var model InventoryBalanceModel
 	err := r.db.WithContext(ctx).
-		Where("warehouse_id = ? AND sku_id = ?", warehouseID, skuID).
+		Where(whereWarehouseSKU, warehouseID, skuID).
 		First(&model).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -70,8 +79,8 @@ func (r *InventoryRepository) LockStock(ctx context.Context, lock *domain.Invent
 
 		// 行锁查询余额
 		var balance InventoryBalanceModel
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("warehouse_id = ? AND sku_id = ?", lock.WarehouseID, lock.SKUID).
+		err := tx.Clauses(clause.Locking{Strength: forUpdate}).
+			Where(whereWarehouseSKU, lock.WarehouseID, lock.SKUID).
 			First(&balance).Error
 		if err != nil {
 			return fmt.Errorf("查询库存失败: %w", err)
@@ -154,8 +163,8 @@ func (r *InventoryRepository) ReleaseStock(ctx context.Context, lockKey string, 
 		}
 
 		var balance InventoryBalanceModel
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("warehouse_id = ? AND sku_id = ?", lockModel.WarehouseID, lockModel.SKUID).
+		err := tx.Clauses(clause.Locking{Strength: forUpdate}).
+			Where(whereWarehouseSKU, lockModel.WarehouseID, lockModel.SKUID).
 			First(&balance).Error
 		if err != nil {
 			return fmt.Errorf("查询库存失败: %w", err)
@@ -196,8 +205,8 @@ func (r *InventoryRepository) DeductStock(ctx context.Context, lockKey string) e
 		}
 
 		var balance InventoryBalanceModel
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("warehouse_id = ? AND sku_id = ?", lockModel.WarehouseID, lockModel.SKUID).
+		err := tx.Clauses(clause.Locking{Strength: forUpdate}).
+			Where(whereWarehouseSKU, lockModel.WarehouseID, lockModel.SKUID).
 			First(&balance).Error
 		if err != nil {
 			return fmt.Errorf("查询库存失败: %w", err)
@@ -286,8 +295,8 @@ func (r *InventoryRepository) ListJournals(ctx context.Context, tenantID, skuID 
 func (r *InventoryRepository) IncreaseStock(ctx context.Context, journal *domain.InventoryJournal) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var balance InventoryBalanceModel
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Where("warehouse_id = ? AND sku_id = ?", journal.WarehouseID, journal.SKUID).
+		err := tx.Clauses(clause.Locking{Strength: forUpdate}).
+			Where(whereWarehouseSKU, journal.WarehouseID, journal.SKUID).
 			First(&balance).Error
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
