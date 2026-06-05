@@ -28,6 +28,8 @@ spec:
           env:
             - name: ENVIRONMENT
               value: "production"
+            # 集群内 Service 间 HTTP 明文通信 — 见 docs/adr/007-internal-service-http.md
+            # SonarCloud kubernetes:S5332 已审查为 Safe（内网不可路由）
             - name: SERVICE_TARGET_IAM
               value: "http://iam-service.erp-go.svc.cluster.local:8081"
           resources:

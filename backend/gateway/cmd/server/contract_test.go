@@ -152,32 +152,7 @@ func TestEventPayloadContract(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			payload, err := outbox.NewEventPayload(tt.eventType, tt.data)
-			if err != nil {
-				t.Fatalf("构建事件载荷失败: %v", err)
-			}
-
-			var ep outbox.EventPayload
-			if err := json.Unmarshal(payload, &ep); err != nil {
-				t.Fatalf("事件载荷 JSON 格式无效: %v", err)
-			}
-
-			if ep.EventType != tt.eventType {
-				t.Errorf("事件类型应为 %s，实际 %s", tt.eventType, ep.EventType)
-			}
-
-			var dataMap map[string]interface{}
-			if err := json.Unmarshal(ep.Data, &dataMap); err != nil {
-				t.Fatalf("事件数据 JSON 格式无效: %v", err)
-			}
-
-			for _, field := range tt.wantFields {
-				if _, ok := dataMap[field]; !ok {
-					t.Errorf("事件载荷缺少字段: %s", field)
-				}
-			}
-
-			t.Logf("事件载荷验证通过: %s, 字段数=%d", tt.eventType, len(dataMap))
+			validateEventPayload(t, tt.eventType, tt.data, tt.wantFields)
 		})
 	}
 }
@@ -210,20 +185,58 @@ func TestAuthResponseContract(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			req, _ := http.NewRequest("GET", "/api/v1/order/orders", nil)
-			if tc.token != "" {
-				req.Header.Set("Authorization", tc.token)
-			}
-			w := httptest.NewRecorder()
-			router.ServeHTTP(w, req)
-			if w.Code != tc.wantCode {
-				t.Errorf("%s: 应返回 %d，实际 %d", tc.name, tc.wantCode, w.Code)
-			}
-			var resp map[string]interface{}
-			json.Unmarshal(w.Body.Bytes(), &resp)
-			if resp["code"].(float64) != tc.wantResp {
-				t.Errorf("%s: 错误码应为 %.0f，实际 %v", tc.name, tc.wantResp, resp["code"])
-			}
+			assertAuthResponse(t, router, tc.token, tc.wantCode, tc.wantResp)
 		})
+	}
+}
+
+// ---- 测试辅助函数 ----
+
+// validateEventPayload 序列化并反序列化事件载荷，验证类型与必填字段
+func validateEventPayload(t *testing.T, eventType string, data interface{}, wantFields []string) {
+	t.Helper()
+	payload, err := outbox.NewEventPayload(eventType, data)
+	if err != nil {
+		t.Fatalf("构建事件载荷失败: %v", err)
+	}
+
+	var ep outbox.EventPayload
+	if err := json.Unmarshal(payload, &ep); err != nil {
+		t.Fatalf("事件载荷 JSON 格式无效: %v", err)
+	}
+
+	if ep.EventType != eventType {
+		t.Errorf("事件类型应为 %s，实际 %s", eventType, ep.EventType)
+	}
+
+	var dataMap map[string]interface{}
+	if err := json.Unmarshal(ep.Data, &dataMap); err != nil {
+		t.Fatalf("事件数据 JSON 格式无效: %v", err)
+	}
+
+	for _, field := range wantFields {
+		if _, ok := dataMap[field]; !ok {
+			t.Errorf("事件载荷缺少字段: %s", field)
+		}
+	}
+	t.Logf("事件载荷验证通过: %s, 字段数=%d", eventType, len(dataMap))
+}
+
+// assertAuthResponse 发送请求并断言 HTTP 状态码与业务错误码
+func assertAuthResponse(t *testing.T, router *gin.Engine, token string, wantCode int, wantResp float64) {
+	t.Helper()
+	req, _ := http.NewRequest("GET", "/api/v1/order/orders", nil)
+	if token != "" {
+		req.Header.Set("Authorization", token)
+	}
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != wantCode {
+		t.Errorf("应返回 %d，实际 %d", wantCode, w.Code)
+	}
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	if resp["code"].(float64) != wantResp {
+		t.Errorf("错误码应为 %.0f，实际 %v", wantResp, resp["code"])
 	}
 }

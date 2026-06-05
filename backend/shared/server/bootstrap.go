@@ -45,50 +45,10 @@ type Server struct {
 
 // New 创建并启动服务
 func New(opts Options) *Server {
-	cfg, _ := config.Load("")
-	cfg.Server.Name = opts.Name
-	if cfg.Server.Port == 0 || cfg.Server.Port == 8080 {
-		cfg.Server.Port = opts.DefaultPort
-	}
-
-	log := logger.New(cfg.Log.Level, cfg.Log.Format, cfg.Log.Output, cfg.Server.Name, os.Getenv("ENVIRONMENT"))
-
-	if cfg.Server.Mode == "release" {
-		gin.SetMode(gin.ReleaseMode)
-	}
-
-	engine := gin.New()
-	engine.Use(
-		middleware.Recovery(log),
-		middleware.RequestID(),
-		middleware.TraceID(),
-		middleware.TenantID(),
-		middleware.CORS(),
-		middleware.RequestLogger(log),
-	)
-
-	var db *gorm.DB
-	if opts.InitDB != nil {
-		database, err := opts.InitDB(cfg.Database, log)
-		if err != nil {
-			log.Warnf("数据库连接失败，使用占位模式: %v", err)
-		} else {
-			log.Info("数据库连接成功")
-			db = database
-		}
-	}
-
-	engine.GET("/health", func(c *gin.Context) {
-		status := "ok"
-		if db == nil {
-			status = "degraded"
-		}
-		c.JSON(http.StatusOK, gin.H{
-			"status":  status,
-			"service": opts.Name,
-			"db":      db != nil,
-		})
-	})
+	cfg, log := resolveConfig(opts)
+	engine := setupEngine(log)
+	db := initDB(opts, cfg, log)
+	registerHealth(engine, opts.Name, db)
 
 	if opts.RegisterRoutes != nil {
 		if err := opts.RegisterRoutes(engine, db, log); err != nil {
@@ -121,6 +81,63 @@ func New(opts Options) *Server {
 	}()
 
 	return &Server{engine: engine, srv: srv, log: log, db: db, opts: opts}
+}
+
+// resolveConfig 加载配置并设置服务名与端口
+func resolveConfig(opts Options) (*config.Config, logger.Logger) {
+	cfg, _ := config.Load("")
+	cfg.Server.Name = opts.Name
+	if cfg.Server.Port == 0 || cfg.Server.Port == 8080 {
+		cfg.Server.Port = opts.DefaultPort
+	}
+	log := logger.New(cfg.Log.Level, cfg.Log.Format, cfg.Log.Output, cfg.Server.Name, os.Getenv("ENVIRONMENT"))
+	if cfg.Server.Mode == "release" {
+		gin.SetMode(gin.ReleaseMode)
+	}
+	return cfg, log
+}
+
+// setupEngine 创建 Gin 引擎并注册标准中间件
+func setupEngine(log logger.Logger) *gin.Engine {
+	engine := gin.New()
+	engine.Use(
+		middleware.Recovery(log),
+		middleware.RequestID(),
+		middleware.TraceID(),
+		middleware.TenantID(),
+		middleware.CORS(),
+		middleware.RequestLogger(log),
+	)
+	return engine
+}
+
+// initDB 调用可选的 InitDB 回调初始化数据库连接
+func initDB(opts Options, cfg *config.Config, log logger.Logger) *gorm.DB {
+	if opts.InitDB == nil {
+		return nil
+	}
+	database, err := opts.InitDB(cfg.Database, log)
+	if err != nil {
+		log.Warnf("数据库连接失败，使用占位模式: %v", err)
+		return nil
+	}
+	log.Info("数据库连接成功")
+	return database
+}
+
+// registerHealth 注册 /health 端点，db 为 nil 时返回 degraded
+func registerHealth(engine *gin.Engine, name string, db *gorm.DB) {
+	engine.GET("/health", func(c *gin.Context) {
+		status := "ok"
+		if db == nil {
+			status = "degraded"
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"status":  status,
+			"service": name,
+			"db":      db != nil,
+		})
+	})
 }
 
 // WaitShutdown 等待信号并执行优雅关闭
