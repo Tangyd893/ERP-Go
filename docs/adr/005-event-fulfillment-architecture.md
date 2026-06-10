@@ -21,10 +21,11 @@ Order 服务已实现进程内 Outbox 轮询处理 `order.approved` / `order.can
 - WMS 更新出库状态后 HTTP 调用 `POST /api/v1/order/fulfillment/outbound-shipped`
 - Order 服务同步执行 `HandleOutboundShipped`（扣库存 + 更新订单状态 + 写 Outbox）
 
-### 通道 3：RabbitMQ Consumer（后续）
+### 通道 3：RabbitMQ Consumer（已接入 Order 服务）
 
-- `shared/outbox.RabbitMQConsumer` 已实现但未接入
-- 待 Order/WMS 稳定后，可将 WMS 出库事件改为 MQ 发布 + Order Consumer，HTTP 回调保留为降级
+- 队列：`order.fulfillment`，绑定 `warehouse.outbound.shipped`
+- Order 服务 DB 就绪且配置 `RABBITMQ_URL` 时自动启动
+- 与 HTTP 回调互为补充；Inbox 幂等避免双通道重复处理
 
 ## 后果
 

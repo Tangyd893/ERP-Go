@@ -7,6 +7,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const whereTenantID = "tenant_id = ?"
+
 type PurchaseRepository struct {
 	db *gorm.DB
 }
@@ -25,7 +27,7 @@ func (r *PurchaseRepository) CreateSupplier(ctx context.Context, s *domain.Suppl
 
 func (r *PurchaseRepository) ListSuppliers(ctx context.Context, tenantID string) ([]*domain.Supplier, error) {
 	var models []*SupplierModel
-	err := r.db.WithContext(ctx).Where("tenant_id = ?", tenantID).Find(&models).Error
+	err := r.db.WithContext(ctx).Where(whereTenantID, tenantID).Find(&models).Error
 	if err != nil { return nil, err }
 	suppliers := make([]*domain.Supplier, len(models))
 	for i, m := range models {
@@ -54,7 +56,7 @@ func (r *PurchaseRepository) CreatePurchaseOrder(ctx context.Context, order *dom
 
 func (r *PurchaseRepository) ListPurchaseOrders(ctx context.Context, tenantID string, offset, limit int) ([]*domain.PurchaseOrder, int64, error) {
 	var total int64
-	query := r.db.WithContext(ctx).Model(&PurchaseOrderModel{}).Where("tenant_id = ?", tenantID)
+	query := r.db.WithContext(ctx).Model(&PurchaseOrderModel{}).Where(whereTenantID, tenantID)
 	query.Count(&total)
 	var models []*PurchaseOrderModel
 	query.Order("created_at DESC").Offset(offset).Limit(limit).Find(&models)
@@ -77,7 +79,7 @@ func (r *PurchaseRepository) UpdatePurchaseStatus(ctx context.Context, id, statu
 
 func (r *PurchaseRepository) ListInboundOrders(ctx context.Context, tenantID string, offset, limit int) ([]*domain.InboundOrder, int64, error) {
 	var total int64
-	query := r.db.WithContext(ctx).Model(&InboundOrderModel{}).Where("tenant_id = ?", tenantID)
+	query := r.db.WithContext(ctx).Model(&InboundOrderModel{}).Where(whereTenantID, tenantID)
 	query.Count(&total)
 	var models []*InboundOrderModel
 	query.Order("created_at DESC").Offset(offset).Limit(limit).Find(&models)

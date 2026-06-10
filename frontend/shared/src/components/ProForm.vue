@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, watch } from "vue";
+import { reactive, ref, watch } from "vue";
 
 interface FormField {
   label: string;
@@ -64,7 +64,6 @@ function handleSubmit() {
   });
 }
 
-import { ref } from "vue";
 </script>
 
 <template>

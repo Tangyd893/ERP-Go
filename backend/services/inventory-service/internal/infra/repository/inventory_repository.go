@@ -13,6 +13,8 @@ import (
 
 const (
 	whereWarehouseSKU = "warehouse_id = ? AND sku_id = ?"
+	whereLockKey      = "lock_key = ?"
+	whereOrderID      = "order_id = ?"
 	forUpdate         = "UPDATE"
 	errFindBalance    = "查询库存失败"
 	errCreateBalance  = "创建库存记录失败"
@@ -73,7 +75,7 @@ func (r *InventoryRepository) LockStock(ctx context.Context, lock *domain.Invent
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 幂等检查
 		var existingLock InventoryLockModel
-		if err := tx.Where("lock_key = ?", lock.LockKey).First(&existingLock).Error; err == nil {
+		if err := tx.Where(whereLockKey, lock.LockKey).First(&existingLock).Error; err == nil {
 			return errors.NewBusinessError(errors.CodeStockIdempotencyConflict, "重复锁定请求: "+lock.LockKey)
 		}
 
@@ -146,7 +148,7 @@ func (r *InventoryRepository) LockStock(ctx context.Context, lock *domain.Invent
 func (r *InventoryRepository) ReleaseStock(ctx context.Context, lockKey string, releaseQty int) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var lockModel InventoryLockModel
-		if err := tx.Where("lock_key = ?", lockKey).First(&lockModel).Error; err != nil {
+		if err := tx.Where(whereLockKey, lockKey).First(&lockModel).Error; err != nil {
 			return fmt.Errorf("锁定记录不存在: %w", err)
 		}
 
@@ -191,7 +193,7 @@ func (r *InventoryRepository) ReleaseStock(ctx context.Context, lockKey string, 
 func (r *InventoryRepository) DeductStock(ctx context.Context, lockKey string) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var lockModel InventoryLockModel
-		if err := tx.Where("lock_key = ?", lockKey).First(&lockModel).Error; err != nil {
+		if err := tx.Where(whereLockKey, lockKey).First(&lockModel).Error; err != nil {
 			return fmt.Errorf("锁定记录不存在: %w", err)
 		}
 
@@ -253,7 +255,7 @@ func (r *InventoryRepository) DeductByOrderID(ctx context.Context, orderID strin
 // FindLocksByOrderID 按订单ID查询锁定记录
 func (r *InventoryRepository) FindLocksByOrderID(ctx context.Context, orderID string) ([]*domain.InventoryLock, error) {
 	var models []*InventoryLockModel
-	err := r.db.WithContext(ctx).Where("order_id = ?", orderID).Find(&models).Error
+	err := r.db.WithContext(ctx).Where(whereOrderID, orderID).Find(&models).Error
 	if err != nil {
 		return nil, err
 	}

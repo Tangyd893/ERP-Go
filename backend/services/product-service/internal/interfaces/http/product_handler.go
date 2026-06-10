@@ -82,7 +82,7 @@ func (h *ProductHandler) createSKU(c *gin.Context) {
 		Currency string  `json:"currency"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 
@@ -162,7 +162,7 @@ func (h *ProductHandler) createSKUMapping(c *gin.Context) {
 		FNSKU        string `json:"fnsku"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 

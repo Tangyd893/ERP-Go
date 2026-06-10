@@ -1,0 +1,12 @@
+---
+description: Windows 下启动本地服务时使用静默模式，不弹出终端窗口
+alwaysApply: true
+---
+
+# 本地服务启动：静默模式
+
+在 Windows 上通过脚本或 Agent 启动 ERP-Go 本地微服务时：
+
+- **应**使用 `scripts/lib/start-go-service.ps1` 中的 `Start-GoServiceSilent`（`WindowStyle Hidden` + 日志重定向到 `.cache/logs/`），**禁止** `Start-Process powershell` 或 `-WindowStyle Minimized`。
+- 服务日志统一写入 `.cache/logs/<service>.log` 与 `.cache/logs/<service>.err.log`，便于排查。
+- 优先使用 `scripts/dev-stack.ps1` / `scripts/start-verify-services.ps1`，勿临时手写会弹窗的启动命令。

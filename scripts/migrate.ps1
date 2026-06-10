@@ -10,13 +10,13 @@ param(
 $ErrorActionPreference = "Stop"
 
 if (-not $DatabaseUrl) {
-    $host = if ($env:DATABASE_HOST) { $env:DATABASE_HOST } else { "localhost" }
+    $dbHost = if ($env:DATABASE_HOST) { $env:DATABASE_HOST } else { "localhost" }
     $port = if ($env:DATABASE_PORT) { $env:DATABASE_PORT } else { "5432" }
     $user = $env:DATABASE_USER
     $pass = $env:DATABASE_PASSWORD
     $dbname = if ($env:DATABASE_DBNAME) { $env:DATABASE_DBNAME } else { $env:DATABASE_NAME }
     if ($user -and $pass) {
-        $DatabaseUrl = "postgres://${user}:${pass}@${host}:${port}/${dbname}?sslmode=disable"
+        $DatabaseUrl = "postgres://${user}:${pass}@${dbHost}:${port}/${dbname}?sslmode=disable"
     } else {
         Write-Error "未设置 DATABASE_URL 且 DATABASE_USER/DATABASE_PASSWORD 环境变量为空。请复制 .env.example 并配置 DATABASE_URL，或设置 DATABASE_* 环境变量。"
         exit 1
@@ -37,15 +37,15 @@ function Invoke-Migration([string]$RelativePath) {
         Write-Warning "Skip missing: $RelativePath"
         return
     }
-    Write-Host "==> $RelativePath" -ForegroundColor Cyan
+    Write-Output "==> $RelativePath"
     & psql $DatabaseUrl -v ON_ERROR_STOP=1 -f $fullPath
     if ($LASTEXITCODE -ne 0) {
         throw "Migration failed: $RelativePath"
     }
 }
 
-Write-Host "Migrating ERP-Go database" -ForegroundColor Green
-Write-Host "DATABASE_URL=$DatabaseUrl"
+Write-Output "Migrating ERP-Go database"
+Write-Output "DATABASE_URL=$DatabaseUrl"
 
 Invoke-Migration "backend/migrations/outbox/001_create_outbox.sql"
 Invoke-Migration "backend/migrations/outbox/002_add_tenant_id.sql"
@@ -65,5 +65,5 @@ foreach ($svc in $services) {
     }
 }
 
-Write-Host ""
-Write-Host "Migration complete." -ForegroundColor Green
+Write-Output ""
+Write-Output "Migration complete."

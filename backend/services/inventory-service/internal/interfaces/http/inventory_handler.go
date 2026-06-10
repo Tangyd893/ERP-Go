@@ -14,6 +14,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	defaultSKU     = "sku-001"
+	defaultWH      = "wh-001"
+	errSKUNotFound = "SKU库存未找到"
+)
+
 // InventoryHandler 库存 HTTP 处理器
 type InventoryHandler struct {
 	repo        *repository.InventoryRepository
@@ -28,8 +34,8 @@ func NewInventoryHandler(repo *repository.InventoryRepository) *InventoryHandler
 	if repo == nil {
 		h.mockEnabled = true
 		h.mockBalances = map[string]*domain.InventoryBalance{
-			"sku-001": {ID: "bal-001", TenantID: "t-001", WarehouseID: "wh-001", SKUID: "sku-001", SKUCode: "TSHIRT-001", TotalQuantity: 500, Version: 1},
-			"sku-002": {ID: "bal-002", TenantID: "t-001", WarehouseID: "wh-001", SKUID: "sku-002", SKUCode: "MUG-001", TotalQuantity: 300, Version: 1},
+			defaultSKU: {ID: "bal-001", TenantID: "t-001", WarehouseID: defaultWH, SKUID: defaultSKU, SKUCode: "TSHIRT-001", TotalQuantity: 500, Version: 1},
+			"sku-002": {ID: "bal-002", TenantID: "t-001", WarehouseID: defaultWH, SKUID: "sku-002", SKUCode: "MUG-001", TotalQuantity: 300, Version: 1},
 		}
 	}
 	return h
@@ -82,7 +88,7 @@ func (h *InventoryHandler) getBalance(c *gin.Context) {
 		return
 	}
 	skuID := c.Param("sku_id")
-	warehouseID := c.DefaultQuery("warehouse_id", "wh-001")
+	warehouseID := c.DefaultQuery("warehouse_id", defaultWH)
 
 	bal, err := h.repo.FindBalance(c.Request.Context(), warehouseID, skuID)
 	if err != nil {
@@ -102,7 +108,7 @@ func (h *InventoryHandler) getBalanceMock(c *gin.Context) {
 	bal, ok := h.mockBalances[skuID]
 	h.mu.RUnlock()
 	if !ok {
-		response.Error(c, http.StatusNotFound, sharedErrors.CodeSKUNotFound, "SKU库存未找到")
+		response.Error(c, http.StatusNotFound, sharedErrors.CodeSKUNotFound, errSKUNotFound)
 		return
 	}
 	response.Success(c, bal)
@@ -117,7 +123,7 @@ func (h *InventoryHandler) lockInventory(c *gin.Context) {
 		LockKey     string `json:"lock_key" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 
@@ -129,7 +135,7 @@ func (h *InventoryHandler) lockInventory(c *gin.Context) {
 	tenantID := c.GetString("tenant_id")
 	warehouseID := req.WarehouseID
 	if warehouseID == "" {
-		warehouseID = "wh-001"
+		warehouseID = defaultWH
 	}
 
 	lock := &domain.InventoryLock{
@@ -188,7 +194,7 @@ func (h *InventoryHandler) lockInventoryMock(c *gin.Context, skuID, orderID stri
 	bal, ok := h.mockBalances[skuID]
 	if !ok {
 		h.mu.Unlock()
-		response.Error(c, http.StatusNotFound, sharedErrors.CodeSKUNotFound, "SKU库存未找到")
+		response.Error(c, http.StatusNotFound, sharedErrors.CodeSKUNotFound, errSKUNotFound)
 		return
 	}
 	if err := bal.Lock(qty); err != nil {
@@ -211,7 +217,7 @@ func (h *InventoryHandler) releaseInventory(c *gin.Context) {
 		Quantity int    `json:"quantity" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 
@@ -234,13 +240,13 @@ func (h *InventoryHandler) releaseInventory(c *gin.Context) {
 }
 
 func (h *InventoryHandler) releaseInventoryMock(c *gin.Context, qty int) {
-	skuID := c.DefaultQuery("sku_id", "sku-001")
+	skuID := c.DefaultQuery("sku_id", defaultSKU)
 
 	h.mu.Lock()
 	bal, ok := h.mockBalances[skuID]
 	if !ok {
 		h.mu.Unlock()
-		response.Error(c, http.StatusNotFound, sharedErrors.CodeSKUNotFound, "SKU库存未找到")
+		response.Error(c, http.StatusNotFound, sharedErrors.CodeSKUNotFound, errSKUNotFound)
 		return
 	}
 	if err := bal.Release(qty); err != nil {
@@ -258,7 +264,7 @@ func (h *InventoryHandler) deductInventory(c *gin.Context) {
 		LockKey string `json:"lock_key" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 
@@ -285,7 +291,7 @@ func (h *InventoryHandler) deductByOrder(c *gin.Context) {
 		OrderID string `json:"order_id" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 
@@ -306,7 +312,7 @@ func (h *InventoryHandler) deductByOrder(c *gin.Context) {
 }
 
 func (h *InventoryHandler) deductInventoryMock(c *gin.Context) {
-	skuID := c.DefaultQuery("sku_id", "sku-001")
+	skuID := c.DefaultQuery("sku_id", defaultSKU)
 	qtyStr := c.DefaultQuery("quantity", "10")
 
 	qty, _ := strconv.Atoi(qtyStr)
@@ -315,7 +321,7 @@ func (h *InventoryHandler) deductInventoryMock(c *gin.Context) {
 	bal, ok := h.mockBalances[skuID]
 	if !ok {
 		h.mu.Unlock()
-		response.Error(c, http.StatusNotFound, sharedErrors.CodeSKUNotFound, "SKU库存未找到")
+		response.Error(c, http.StatusNotFound, sharedErrors.CodeSKUNotFound, errSKUNotFound)
 		return
 	}
 	if err := bal.Deduct(qty); err != nil {
@@ -353,13 +359,13 @@ func (h *InventoryHandler) listJournalsMock(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 
-	defaultSKU := "sku-001"
-	if skuID == "" {
-		defaultSKU = skuID
+	sku := defaultSKU
+	if skuID != "" {
+		sku = skuID
 	}
 
 	journals := []*domain.InventoryJournal{
-		{ID: "j-1", SKUID: defaultSKU, ChangeType: "lock", ChangeQty: 10, BeforeTotal: 500, AfterTotal: 500, BeforeLocked: 0, AfterLocked: 10, BeforeAvail: 500, AfterAvail: 490},
+		{ID: "j-1", SKUID: sku, ChangeType: "lock", ChangeQty: 10, BeforeTotal: 500, AfterTotal: 500, BeforeLocked: 0, AfterLocked: 10, BeforeAvail: 500, AfterAvail: 490},
 	}
 	response.PageSuccess(c, journals, int64(len(journals)), page, pageSize)
 }
@@ -373,7 +379,7 @@ func (h *InventoryHandler) increaseInventory(c *gin.Context) {
 		IdempotencyKey string `json:"idempotency_key"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 

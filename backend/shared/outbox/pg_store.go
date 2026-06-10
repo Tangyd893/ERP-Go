@@ -8,6 +8,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const whereStatus = "status = ?"
+
 // OutboxMessageModel Outbox 消息 GORM 模型
 type OutboxMessageModel struct {
 	ID            int64      `gorm:"column:id;primaryKey;autoIncrement"`
@@ -98,6 +100,10 @@ func (s *PGOutboxStore) MarkFailed(ctx context.Context, id int64, err error) err
 		"status":      string(StatusFailed),
 		"retry_count": gorm.Expr("retry_count + 1"),
 	}).Error
+}
+
+func (s *PGOutboxStore) Retry(ctx context.Context, id int64) error {
+	return s.db.WithContext(ctx).Model(&OutboxMessageModel{}).Where("id = ?", id).Update("status", string(StatusPending)).Error
 }
 
 func (s *PGOutboxStore) FetchFailed(ctx context.Context, offset, limit int) ([]*OutboxMessage, int64, error) {

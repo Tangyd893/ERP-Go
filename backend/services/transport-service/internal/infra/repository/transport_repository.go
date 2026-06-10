@@ -7,6 +7,11 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	whereTenantID = "tenant_id = ?"
+	orderByDesc   = "created_at DESC"
+)
+
 type TransportRepository struct {
 	db *gorm.DB
 }
@@ -26,10 +31,10 @@ func (r *TransportRepository) CreateShipment(ctx context.Context, s *domain.Ship
 
 func (r *TransportRepository) ListShipments(ctx context.Context, tenantID string, offset, limit int) ([]*domain.Shipment, int64, error) {
 	var total int64
-	query := r.db.WithContext(ctx).Model(&ShipmentModel{}).Where("tenant_id = ?", tenantID)
+	query := r.db.WithContext(ctx).Model(&ShipmentModel{}).Where(whereTenantID, tenantID)
 	query.Count(&total)
 	var models []*ShipmentModel
-	query.Order("created_at DESC").Offset(offset).Limit(limit).Find(&models)
+	query.Order(orderByDesc).Offset(offset).Limit(limit).Find(&models)
 	shipments := make([]*domain.Shipment, len(models))
 	for i, m := range models {
 		shipments[i] = &domain.Shipment{
@@ -63,7 +68,7 @@ func (r *TransportRepository) UpdateShipmentStatus(ctx context.Context, id, stat
 
 func (r *TransportRepository) ListCarriers(ctx context.Context, tenantID string) ([]*domain.Carrier, error) {
 	var models []*CarrierModel
-	err := r.db.WithContext(ctx).Where("tenant_id = ?", tenantID).Find(&models).Error
+	err := r.db.WithContext(ctx).Where(whereTenantID, tenantID).Find(&models).Error
 	if err != nil { return nil, err }
 	carriers := make([]*domain.Carrier, len(models))
 	for i, m := range models {

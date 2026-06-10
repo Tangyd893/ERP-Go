@@ -55,11 +55,6 @@ export const useTransportStore = defineStore("transport", () => {
     }
   }
 
-  async function generateLabel(shipmentId: string) {
-    const res = await apiClient.post(`/transport/shipments/${shipmentId}/label`);
-    return res.data?.data ?? res.data;
-  }
-
   return {
     carriers,
     shipments,
@@ -70,3 +65,8 @@ export const useTransportStore = defineStore("transport", () => {
     generateLabel,
   };
 });
+
+async function generateLabel(shipmentId: string) {
+  const res = await apiClient.post(`/transport/shipments/${shipmentId}/label`);
+  return res.data?.data ?? res.data;
+}

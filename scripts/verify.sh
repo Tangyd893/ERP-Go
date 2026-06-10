@@ -7,7 +7,8 @@
 set -euo pipefail
 
 SKIP_FRONTEND=0
-if [[ "${1:-}" == "--skip-frontend" ]]; then
+ARG1="${1:-}"
+if [[ "$ARG1" == "--skip-frontend" ]]; then
   SKIP_FRONTEND=1
 fi
 

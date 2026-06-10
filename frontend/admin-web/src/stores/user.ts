@@ -45,10 +45,6 @@ export const useUserStore = defineStore("user", () => {
     return res.data.data;
   }
 
-  async function deleteUser(userId: string) {
-    await apiClient.delete(`/iam/users/${userId}`);
-  }
-
   return {
     users,
     total,
@@ -59,3 +55,7 @@ export const useUserStore = defineStore("user", () => {
     deleteUser,
   };
 });
+
+async function deleteUser(userId: string) {
+  await apiClient.delete(`/iam/users/${userId}`);
+}

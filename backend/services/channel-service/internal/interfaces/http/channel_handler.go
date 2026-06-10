@@ -62,7 +62,7 @@ func (h *ChannelHandler) createStore(c *gin.Context) {
 		StoreCode    string `json:"store_code" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 
@@ -95,7 +95,7 @@ func (h *ChannelHandler) importOrders(c *gin.Context) {
 		FileName string `json:"file_name"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 

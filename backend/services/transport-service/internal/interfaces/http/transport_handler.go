@@ -57,7 +57,7 @@ func (h *TransportHandler) createShipment(c *gin.Context) {
 		Weight     float64 `json:"weight"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 	s := &domain.Shipment{
@@ -80,7 +80,7 @@ func (h *TransportHandler) createLabel(c *gin.Context) {
 		LabelURL   string `json:"label_url"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 	if err := h.appService.CreateLabel(c.Request.Context(), req.ShipmentID, req.TrackingNo, req.LabelURL); err != nil {

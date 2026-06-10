@@ -44,10 +44,6 @@ export const useRoleStore = defineStore("role", () => {
     return res.data.data;
   }
 
-  async function deleteRole(id: string) {
-    await apiClient.delete(`/iam/roles/${id}`);
-  }
-
   return {
     roles,
     total,
@@ -58,3 +54,7 @@ export const useRoleStore = defineStore("role", () => {
     deleteRole,
   };
 });
+
+async function deleteRole(id: string) {
+  await apiClient.delete(`/iam/roles/${id}`);
+}

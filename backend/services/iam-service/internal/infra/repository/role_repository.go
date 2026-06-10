@@ -8,6 +8,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const whereIDAndTenant = "id = ? AND tenant_id = ?"
+
 // RoleRepository GORM 实现的角色仓储
 type RoleRepository struct {
 	db *gorm.DB
@@ -33,7 +35,7 @@ func (r *RoleRepository) Create(ctx context.Context, role *domain.Role) error {
 
 func (r *RoleRepository) Update(ctx context.Context, role *domain.Role) error {
 	return r.db.WithContext(ctx).Model(&RoleModel{}).
-		Where("id = ? AND tenant_id = ?", role.ID, role.TenantID).
+		Where(whereIDAndTenant, role.ID, role.TenantID).
 		Updates(map[string]interface{}{
 			"name":        role.Name,
 			"description": role.Description,
@@ -45,7 +47,7 @@ func (r *RoleRepository) Update(ctx context.Context, role *domain.Role) error {
 func (r *RoleRepository) FindByID(ctx context.Context, tenantID, roleID string) (*domain.Role, error) {
 	var model RoleModel
 	err := r.db.WithContext(ctx).
-		Where("id = ? AND tenant_id = ?", roleID, tenantID).
+		Where(whereIDAndTenant, roleID, tenantID).
 		First(&model).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -125,7 +127,7 @@ func (r *RoleRepository) Delete(ctx context.Context, tenantID, roleID string) er
 			return err
 		}
 		// 删除角色
-		return tx.Where("id = ? AND tenant_id = ?", roleID, tenantID).Delete(&RoleModel{}).Error
+		return tx.Where(whereIDAndTenant, roleID, tenantID).Delete(&RoleModel{}).Error
 	})
 }
 

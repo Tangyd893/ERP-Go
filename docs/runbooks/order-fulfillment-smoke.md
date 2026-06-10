@@ -1,193 +1,141 @@
-# 订单履约主链路手工验收 Runbook
+# 订单履约手工烟测 Runbook
 
-> 目标：10 分钟内从零走通"订单审核 → 库存锁定 → 出库单 → 发货 → 库存扣减"完整链路。
+> 用于验证订单审核→出库→发货→库存扣减全链路，无需 RabbitMQ（HTTP 回调模式）。
 
 ## 前置条件
 
-| 条件 | 检查命令 |
-|---|---|
-| Docker 已启动 | `docker ps` |
-| 中间件已就绪（PG/RabbitMQ/Redis） | `.\scripts\dev-stack.ps1 infra` |
-| 核心服务已启动 | 见下方端口表 |
+- `scripts/dev-stack.ps1 all` 已启动全部服务（Gateway :8080, IAM :8081, Inventory :8086, Warehouse :8087, Order :8085）
+- PostgreSQL + 迁移已就绪
+- 以下变量已设置（dev-stack 自动设置）：
+  - `ORDER_SERVICE_URL=http://localhost:8085`
+  - `INVENTORY_SERVICE_URL=http://localhost:8086`
+  - `WAREHOUSE_SERVICE_URL=http://localhost:8087`
 
-## 0. 启动全栈
+## 烟测步骤
+
+### Step 1: 登录获取 Token
 
 ```powershell
-# Windows PowerShell — 一键启动
-.\scripts\dev-stack.ps1 all
+$body = @{username="admin"; password="admin123"; tenant_id="default"} | ConvertTo-Json
+$token = (Invoke-RestMethod -Uri http://localhost:8080/api/v1/iam/login -Method POST -Body $body -ContentType "application/json").data.access_token
+$headers = @{Authorization = "Bearer $token"; "X-Tenant-ID" = "default"}
 ```
 
-```bash
-# Linux / macOS
-make dev-stack
+### Step 2: 创建测试订单
+
+```powershell
+$orderBody = @{
+  order_no = "SMOKE-001"
+  buyer_name = "烟测买家"
+  items = @(@{sku_id="sku-001"; sku_name="测试商品"; quantity=2; unit_price=9.99})
+  total_amount = 19.98
+  currency = "CNY"
+} | ConvertTo-Json
+
+$order = Invoke-RestMethod -Uri http://localhost:8080/api/v1/order/orders -Method POST -Body $orderBody -Headers $headers -ContentType "application/json"
+$orderId = $order.data.id
+Write-Host "订单ID: $orderId"
 ```
 
-启动后等待约 5 秒，确认服务健康：
+### Step 3: 审核订单（触发锁库 + 建出库单）
 
-```bash
-curl http://localhost:8080/health    # Gateway: {"status":"ok"}
-curl http://localhost:8085/health    # Order:   {"status":"ok"} 或 degraded
-curl http://localhost:8086/health    # Inventory
-curl http://localhost:8087/health    # Warehouse
+```powershell
+$auditBody = @{order_id = $orderId; approved = $true} | ConvertTo-Json
+Invoke-RestMethod -Uri http://localhost:8080/api/v1/order/orders/audit -Method POST -Body $auditBody -Headers $headers -ContentType "application/json"
+# 期望: {"code":0,"data":{"approved":true}}
 ```
 
-## 1. IAM 登录获取 Token
+### Step 4: 查询出库单
 
-```bash
-curl -s -X POST http://localhost:8080/api/v1/iam/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123","tenant_id":"default"}' | jq .
+```powershell
+$outbounds = Invoke-RestMethod -Uri http://localhost:8080/api/v1/warehouse/outbounds -Headers $headers
+$outboundId = $outbounds.data.list[0].id
+Write-Host "出库单ID: $outboundId"
+# 期望: 出库单状态为 picking 或 created
 ```
 
-保存返回的 `access_token`：
+### Step 5: 模拟出库完成（发货回调）
 
-```bash
-export TOKEN="<粘贴 access_token>"
+```powershell
+$shipBody = @{
+  outbound_id = $outboundId
+  order_id = $orderId
+  warehouse_id = "wh-001"
+  items = @(@{sku_id="sku-001"; sku_code="A001"; sku_name="测试商品"; qty=2})
+  tracking_no = "TN-SMOKE-001"
+  carrier = "YTO"
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri http://localhost:8080/api/v1/order/fulfillment/outbound-shipped -Method POST -Body $shipBody -Headers $headers -ContentType "application/json"
+# 期望: {"code":0,"data":{"processed":true,"order_id":"<orderId>"}}
 ```
 
-## 2. 创建销售订单
+### Step 6: 验证订单状态
 
-```bash
-curl -s -X POST http://localhost:8080/api/v1/order/orders \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Tenant-ID: default" \
-  -d '{
-    "store_id": "st-1",
-    "warehouse_id": "wh-001",
-    "order_no": "SO-SMOKE-001",
-    "buyer_name": "测试买家",
-    "items": [
-      {"sku_id": "sku-001", "sku_code": "A001", "sku_name": "商品A", "quantity": 2}
-    ]
-  }' | jq .
+```powershell
+$orderStatus = Invoke-RestMethod -Uri "http://localhost:8080/api/v1/order/orders/$orderId" -Headers $headers
+Write-Host "订单状态: $($orderStatus.data.status)"
+# 期望: shipped
 ```
 
-记下返回的 `order_id`。
+### Step 7: 验证库存扣减
 
-## 3. 审核订单
-
-```bash
-curl -s -X POST http://localhost:8080/api/v1/order/orders/audit \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Tenant-ID: default" \
-  -d '{"order_id":"<订单ID>","approved":true}' | jq .
+```powershell
+$balances = Invoke-RestMethod -Uri http://localhost:8080/api/v1/inventory/balances -Headers $headers
+# 确认 sku-001 的 total_quantity 减少了 2
 ```
 
-**预期**：`{"code":0, "data":{"approved":true}}`
+## 失败场景烟测
 
-### 验证审核效果
+### 场景 A: 审核→锁库失败
 
-```bash
-# 1. 查询 Outbox 表（应有 stock.locked + outbound.created 事件）
-docker exec erp-postgres psql -U erp -d erp_go \
-  -c "SELECT event_type, status FROM outbox_messages ORDER BY id DESC LIMIT 5;"
-
-# 2. 查询出库单
-curl -s http://localhost:8080/api/v1/warehouse/outbounds \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Tenant-ID: default" | jq .
-
-# 3. 查询库存（应显示锁定数量）
-curl -s http://localhost:8080/api/v1/inventory/balances \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Tenant-ID: default" | jq .
+```powershell
+# 对不存在的 SKU 创建订单并审核
+# 期望: 审核返回错误，不创建出库单
+# 验证: GET /outbox/failed 可查询失败消息
+Invoke-RestMethod -Uri http://localhost:8080/api/v1/order/outbox/failed -Headers $headers
 ```
 
-## 4. PDA 拣货（模拟）
+### 场景 B: 死信重试
 
-```bash
-# 获取拣货任务列表
-curl -s http://localhost:8080/api/v1/warehouse/pick-tasks \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Tenant-ID: default" | jq .
+```powershell
+# 获取失败消息 ID
+$failed = Invoke-RestMethod -Uri http://localhost:8080/api/v1/order/outbox/failed -Headers $headers
+$failedId = $failed.data.list[0].id
 
-# 拣货扫码
-curl -s -X POST http://localhost:8080/api/v1/warehouse/pick/scan \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Tenant-ID: default" \
-  -d '{"outbound_id":"<出库单ID>","sku_id":"sku-001","quantity":2}' | jq .
+# 重试
+$retryBody = @{id = $failedId} | ConvertTo-Json
+Invoke-RestMethod -Uri http://localhost:8080/api/v1/order/outbox/retry -Method POST -Body $retryBody -Headers $headers -ContentType "application/json"
+# 期望: {"code":0,"data":{"retried":true,"id":<id>}}
 ```
 
-## 5. 复核扫码
+### 场景 C: 重复审核幂等
 
-```bash
-curl -s -X POST http://localhost:8080/api/v1/warehouse/check/scan \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Tenant-ID: default" \
-  -d '{"outbound_id":"<出库单ID>","sku_id":"sku-001","quantity":2}' | jq .
+```powershell
+# 对同一订单再次审核
+# 期望: 幂等返回成功（Inbox 去重），不重复锁库/建出库单
+Invoke-RestMethod -Uri http://localhost:8080/api/v1/order/orders/audit -Method POST -Body $auditBody -Headers $headers -ContentType "application/json"
 ```
 
-## 6. 打包
+## 清理
 
-```bash
-curl -s -X POST http://localhost:8080/api/v1/warehouse/package \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Tenant-ID: default" \
-  -d '{"outbound_id":"<出库单ID>"}' | jq .
+```powershell
+# 取消测试订单
+$cancelBody = @{order_id = $orderId; reason = "烟测清理"} | ConvertTo-Json
+Invoke-RestMethod -Uri http://localhost:8080/api/v1/order/orders/cancel -Method POST -Body $cancelBody -Headers $headers -ContentType "application/json"
 ```
 
-## 7. 称重
+## 预期结果一览
 
-```bash
-curl -s -X POST http://localhost:8080/api/v1/warehouse/weigh \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Tenant-ID: default" \
-  -d '{"outbound_id":"<出库单ID>","weight":1500}' | jq .
-```
-
-## 8. 出库确认（关键步骤）
-
-```bash
-curl -s -X POST http://localhost:8080/api/v1/warehouse/outbounds/<出库单ID>/ship \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Tenant-ID: default" \
-  -d '{"tracking_no":"TN-001","carrier":"SF"}' | jq .
-```
-
-**预期**：WMS 更新出库单状态 → 通知 Order 服务 → Order 扣减库存 → 更新订单为 `shipped`。
-
-## 9. 验证最终状态
-
-```bash
-# 查询订单状态（应为 shipped）
-curl -s http://localhost:8080/api/v1/order/orders/<订单ID> \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Tenant-ID: default" | jq '.status'
-
-# 查询 outbox 事件历史
-docker exec erp-postgres psql -U erp -d erp_go \
-  -c "SELECT event_type, status, created_at FROM outbox_messages ORDER BY id;"
-
-# 查询失败 outbox（如有）
-curl -s "http://localhost:8080/api/v1/order/outbox/failed?page=1&page_size=10" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "X-Tenant-ID: default" | jq .
-```
-
-## 10. 验收通过标准
-
-| 步骤 | 检查项 | 预期 |
-|---|---|---|
-| 3 | 审核返回 | `approved: true` |
-| 3 | outbox_messages 表 | 包含 `order.approved` / `stock.locked` / `outbound.created` |
-| 4-7 | PDA 操作 | 各步骤返回成功，出库单状态逐步变化 |
-| 8 | 出库确认 | 库存扣减成功，订单状态 `shipped` |
-| 9 | 出库后 outbox | 包含 `stock.deducted` / `order.shipped` |
-| 9 | 失败消息列表 | 为空（无异常） |
-
-## 常见问题
-
-| 现象 | 可能原因 | 处理 |
-|---|---|---|
-| 审核返回错误 | Order 服务 degraded（DB 未就绪） | 检查 PG、迁移是否正确执行 |
-| 出库单不存在 | Warehouse 服务 degraded | 同上 |
-| WMS 操作返回 404 | 路由未注册 | 确认 Gateway 代理正确映射 warehouse 路由 |
-| 出库后订单状态未变 | `ORDER_SERVICE_URL` 未设置或不可达 | 检查 warehouse 和 order 间网络 |
-| Token 过期 | `JWT_SECRET` 不一致 | 确认所有服务使用同一 secret |
+| 步骤 | 检查点 | 预期 |
+|------|--------|------|
+| 登录 | Token 非空 | ✅ |
+| 创建订单 | 返回 order_id | ✅ |
+| 审核 | approved:true | ✅ |
+| 查出库单 | 状态 picking/created | ✅ |
+| 发货回调 | processed:true | ✅ |
+| 查订单 | 状态 shipped | ✅ |
+| 查库存 | sku-001 扣减 2 | ✅ |
+| 查死信 | 可查询 /outbox/failed | ✅ |
+| 重试死信 | retried:true | ✅ |
+| 重复审核 | 幂等无副作用 | ✅ |

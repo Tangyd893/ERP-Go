@@ -65,6 +65,18 @@ func (s *MemOutboxStore) MarkFailed(ctx context.Context, id int64, err error) er
 	return nil
 }
 
+func (s *MemOutboxStore) Retry(ctx context.Context, id int64) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, msg := range s.messages {
+		if msg.ID == id {
+			msg.Status = StatusPending
+			break
+		}
+	}
+	return nil
+}
+
 func (s *MemOutboxStore) FetchFailed(ctx context.Context, offset, limit int) ([]*OutboxMessage, int64, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

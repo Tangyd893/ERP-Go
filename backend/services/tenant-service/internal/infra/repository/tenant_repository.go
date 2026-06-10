@@ -8,6 +8,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const orderByDesc = "created_at DESC"
+
 // TenantRepository GORM 实现的租户仓储
 type TenantRepository struct {
 	db *gorm.DB
@@ -80,7 +82,7 @@ func (r *TenantRepository) List(ctx context.Context, offset, limit int) ([]*doma
 	}
 
 	var models []*TenantModel
-	err := r.db.WithContext(ctx).Order("created_at DESC").Offset(offset).Limit(limit).Find(&models).Error
+	err := r.db.WithContext(ctx).Order(orderByDesc).Offset(offset).Limit(limit).Find(&models).Error
 	if err != nil {
 		return nil, 0, err
 	}

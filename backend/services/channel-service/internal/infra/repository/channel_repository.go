@@ -7,6 +7,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const whereTenantID = "tenant_id = ?"
+
 type ChannelRepository struct {
 	db *gorm.DB
 }
@@ -27,7 +29,7 @@ func (r *ChannelRepository) CreateStore(ctx context.Context, store *domain.Store
 
 func (r *ChannelRepository) ListStores(ctx context.Context, tenantID string) ([]*domain.Store, error) {
 	var models []*StoreModel
-	err := r.db.WithContext(ctx).Where("tenant_id = ?", tenantID).Find(&models).Error
+	err := r.db.WithContext(ctx).Where(whereTenantID, tenantID).Find(&models).Error
 	if err != nil {
 		return nil, err
 	}

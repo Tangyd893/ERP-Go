@@ -50,28 +50,36 @@ export const useOrderStore = defineStore("order", () => {
     }
   }
 
-  async function auditOrder(orderId: string, approved: boolean) {
-    const res = await apiClient.post<ApiResponse<{ approved: boolean }>>(
-      "/order/orders/audit",
-      { order_id: orderId, approved }
-    );
-    return res.data.data;
-  }
-
-  async function cancelOrder(orderId: string, reason: string) {
-    const res = await apiClient.post<ApiResponse<{ cancelled: boolean }>>(
-      "/order/orders/cancel",
-      { order_id: orderId, reason }
-    );
-    return res.data.data;
-  }
-
   return {
     orders,
     total,
     loading,
     fetchOrders,
     auditOrder,
+    markAbnormal,
     cancelOrder,
   };
 });
+
+async function auditOrder(orderId: string, approved: boolean) {
+  const res = await apiClient.post<ApiResponse<{ approved: boolean }>>(
+    "/order/orders/audit",
+    { order_id: orderId, approved }
+  );
+  return res.data.data;
+}
+
+async function markAbnormal(orderId: string, reason: string) {
+  await apiClient.post("/order/orders/abnormal", {
+    order_id: orderId,
+    reason,
+  });
+}
+
+async function cancelOrder(orderId: string, reason: string) {
+  const res = await apiClient.post<ApiResponse<{ cancelled: boolean }>>(
+    "/order/orders/cancel",
+    { order_id: orderId, reason }
+  );
+  return res.data.data;
+}

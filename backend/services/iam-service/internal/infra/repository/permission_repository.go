@@ -8,6 +8,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const whereID = "id = ?"
+
 // PermissionRepository GORM 实现的权限仓储
 type PermissionRepository struct {
 	db *gorm.DB
@@ -35,7 +37,7 @@ func (r *PermissionRepository) Create(ctx context.Context, perm *domain.Permissi
 
 func (r *PermissionRepository) Update(ctx context.Context, perm *domain.Permission) error {
 	return r.db.WithContext(ctx).Model(&PermissionModel{}).
-		Where("id = ?", perm.ID).
+		Where(whereID, perm.ID).
 		Updates(map[string]interface{}{
 			"name":        perm.Name,
 			"description": perm.Description,
@@ -45,7 +47,7 @@ func (r *PermissionRepository) Update(ctx context.Context, perm *domain.Permissi
 
 func (r *PermissionRepository) FindByID(ctx context.Context, permID string) (*domain.Permission, error) {
 	var model PermissionModel
-	err := r.db.WithContext(ctx).Where("id = ?", permID).First(&model).Error
+	err := r.db.WithContext(ctx).Where(whereID, permID).First(&model).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, errors.NewBusinessError(errors.CodeNotFound, "权限不存在")
@@ -107,5 +109,5 @@ func (r *PermissionRepository) ListByRoleID(ctx context.Context, roleID string) 
 }
 
 func (r *PermissionRepository) Delete(ctx context.Context, permID string) error {
-	return r.db.WithContext(ctx).Where("id = ?", permID).Delete(&PermissionModel{}).Error
+	return r.db.WithContext(ctx).Where(whereID, permID).Delete(&PermissionModel{}).Error
 }

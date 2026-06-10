@@ -9,6 +9,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const errUserDisabled = "用户已被禁用"
+
 // AuthService 认证应用服务
 type AuthService struct {
 	userRepo    domain.UserRepository
@@ -53,8 +55,8 @@ func (s *AuthService) Login(ctx context.Context, tenantID, username, password, i
 	}
 
 	if !user.IsActive() {
-		s.writeAudit(ctx, tenantID, user.ID, username, domain.AuditLogin, "user", user.ID, "登录失败", ip, userAgent, "fail", "用户已禁用")
-		return nil, errors.NewBusinessError(errors.CodeUserDisabled, "用户已被禁用")
+		s.writeAudit(ctx, tenantID, user.ID, username, domain.AuditLogin, "user", user.ID, "登录失败", ip, userAgent, "fail", errUserDisabled)
+		return nil, errors.NewBusinessError(errors.CodeUserDisabled, errUserDisabled)
 	}
 
 	if !s.passHasher.Verify(password, user.PasswordHash) {
@@ -99,7 +101,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*L
 	}
 
 	if !user.IsActive() {
-		return nil, errors.NewBusinessError(errors.CodeUserDisabled, "用户已被禁用")
+		return nil, errors.NewBusinessError(errors.CodeUserDisabled, errUserDisabled)
 	}
 
 	accessToken, err := s.tokenMgr.GenerateAccessToken(user.ID, claims.TenantID, user.Roles)
@@ -135,7 +137,7 @@ func (s *AuthService) CheckPermission(ctx context.Context, tenantID, userID, per
 	}
 
 	if !user.IsActive() {
-		return false, errors.NewBusinessError(errors.CodeUserDisabled, "用户已被禁用")
+		return false, errors.NewBusinessError(errors.CodeUserDisabled, errUserDisabled)
 	}
 
 	return user.HasPermission(permissionCode), nil

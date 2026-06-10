@@ -163,7 +163,7 @@ func (s *Server) Login(c *gin.Context) {
 		Password string `json:"password" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, apperrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, apperrors.CodeInvalidParameter, apperrors.CodeInvalidParameter.Message())
 		return
 	}
 
@@ -186,7 +186,7 @@ func (s *Server) RefreshToken(c *gin.Context) {
 		RefreshToken string `json:"refresh_token" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, apperrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, apperrors.CodeInvalidParameter, apperrors.CodeInvalidParameter.Message())
 		return
 	}
 
@@ -239,7 +239,7 @@ func (s *Server) CheckPermission(c *gin.Context) {
 		PermissionCode string `json:"permission_code" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, apperrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, apperrors.CodeInvalidParameter, apperrors.CodeInvalidParameter.Message())
 		return
 	}
 
@@ -262,7 +262,7 @@ func (s *Server) CreateUser(c *gin.Context) {
 		Phone    string `json:"phone"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, apperrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, apperrors.CodeInvalidParameter, apperrors.CodeInvalidParameter.Message())
 		return
 	}
 
@@ -288,7 +288,7 @@ func (s *Server) UpdateUser(c *gin.Context) {
 		Phone    string `json:"phone"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, apperrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, apperrors.CodeInvalidParameter, apperrors.CodeInvalidParameter.Message())
 		return
 	}
 
@@ -314,7 +314,7 @@ func (s *Server) AssignUserRoles(c *gin.Context) {
 		RoleIDs []string `json:"role_ids" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, apperrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, apperrors.CodeInvalidParameter, apperrors.CodeInvalidParameter.Message())
 		return
 	}
 
@@ -429,7 +429,7 @@ func (s *Server) CreateRole(c *gin.Context) {
 		Description string `json:"description"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, apperrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, apperrors.CodeInvalidParameter, apperrors.CodeInvalidParameter.Message())
 		return
 	}
 
@@ -454,7 +454,7 @@ func (s *Server) UpdateRole(c *gin.Context) {
 		Description string `json:"description"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, apperrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, apperrors.CodeInvalidParameter, apperrors.CodeInvalidParameter.Message())
 		return
 	}
 
@@ -480,7 +480,7 @@ func (s *Server) AssignRolePermissions(c *gin.Context) {
 		PermissionIDs []string `json:"permission_ids" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, apperrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, apperrors.CodeInvalidParameter, apperrors.CodeInvalidParameter.Message())
 		return
 	}
 

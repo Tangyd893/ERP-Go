@@ -7,6 +7,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const orderByDesc = "created_at DESC"
+
 type NotificationRepository struct {
 	db *gorm.DB
 }
@@ -27,7 +29,7 @@ func (r *NotificationRepository) ListByUser(ctx context.Context, tenantID, userI
 	query := r.db.WithContext(ctx).Model(&NotificationModel{}).Where("tenant_id = ? AND user_id = ?", tenantID, userID)
 	query.Count(&total)
 	var models []*NotificationModel
-	query.Order("created_at DESC").Offset(offset).Limit(limit).Find(&models)
+	query.Order(orderByDesc).Offset(offset).Limit(limit).Find(&models)
 	list := make([]*domain.Notification, len(models))
 	for i, m := range models {
 		list[i] = &domain.Notification{ID: m.ID, TenantID: m.TenantID, UserID: m.UserID, Title: m.Title, Content: m.Content, Type: m.Type, Read: m.Read, CreatedAt: m.CreatedAt}

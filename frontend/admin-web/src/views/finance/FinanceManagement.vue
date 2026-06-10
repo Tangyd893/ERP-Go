@@ -3,7 +3,7 @@ import { ref } from "vue";
 import { ProTable } from "@erp/shared";
 
 const settlements = ref([{ id: "1", store: "美国站店铺A", period: "2026-05-01 ~ 2026-05-15", total_sales: 12500, commission: 1500, net_amount: 11000, status: "matched", currency: "USD" }]);
-const profits = ref([{ order_no: "AMZ-20260520-004", sale_amount: 12.99, purchase_cost: 5.0, shipping_cost: 3.5, commission: 1.95, total_cost: 10.45, gross_profit: 2.54, profit_margin: 19.6 }]);
+const profits = ref([{ order_no: "AMZ-20260520-004", sale_amount: 12.99, purchase_cost: 5, shipping_cost: 3.5, commission: 1.95, total_cost: 10.45, gross_profit: 2.54, profit_margin: 19.6 }]);
 
 const settlementColumns = [
   { prop: "store", label: "店铺", width: 150 },

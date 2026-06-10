@@ -8,6 +8,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const whereOrderID = "order_id = ?"
+
 type OrderRepository struct {
 	db *gorm.DB
 }
@@ -102,13 +104,13 @@ func (r *OrderRepository) List(ctx context.Context, tenantID string, offset, lim
 
 func (r *OrderRepository) loadOrder(ctx context.Context, m *SalesOrderModel) (*domain.SalesOrder, error) {
 	var items []*OrderItemModel
-	r.db.WithContext(ctx).Where("order_id = ?", m.ID).Find(&items)
+	r.db.WithContext(ctx).Where(whereOrderID, m.ID).Find(&items)
 
 	var addr OrderAddressModel
-	r.db.WithContext(ctx).Where("order_id = ?", m.ID).First(&addr)
+	r.db.WithContext(ctx).Where(whereOrderID, m.ID).First(&addr)
 
 	var logs []*OrderStatusLogModel
-	r.db.WithContext(ctx).Where("order_id = ?", m.ID).Order("created_at ASC").Find(&logs)
+	r.db.WithContext(ctx).Where(whereOrderID, m.ID).Order("created_at ASC").Find(&logs)
 
 	domainItems := make([]*domain.OrderItem, len(items))
 	for i, item := range items {

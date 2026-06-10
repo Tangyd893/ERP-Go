@@ -8,6 +8,11 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	whereOutboundID = "outbound_id = ?"
+	whereID         = "id = ?"
+)
+
 type WarehouseRepository struct {
 	db *gorm.DB
 }
@@ -62,7 +67,7 @@ func (r *WarehouseRepository) ListOutbounds(ctx context.Context, tenantID string
 	orders := make([]*domain.OutboundOrder, len(models))
 	for i, m := range models {
 		var items []*OutboundItemModel
-		r.db.WithContext(ctx).Where("outbound_id = ?", m.ID).Find(&items)
+		r.db.WithContext(ctx).Where(whereOutboundID, m.ID).Find(&items)
 		domainItems := make([]*domain.OutboundItem, len(items))
 		for j, it := range items {
 			domainItems[j] = &domain.OutboundItem{ID: it.ID, SKUID: it.SKUID, SKUCode: it.SKUCode, SKUName: it.SKUName, Quantity: it.Quantity, PickedQty: it.PickedQty, CheckedQty: it.CheckedQty, LocationID: it.LocationID}
@@ -74,11 +79,11 @@ func (r *WarehouseRepository) ListOutbounds(ctx context.Context, tenantID string
 
 func (r *WarehouseRepository) FindOutbound(ctx context.Context, id string) (*domain.OutboundOrder, error) {
 	var m OutboundOrderModel
-	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&m).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where(whereID, id).First(&m).Error; err != nil {
 		return nil, err
 	}
 	var items []*OutboundItemModel
-	r.db.WithContext(ctx).Where("outbound_id = ?", m.ID).Find(&items)
+	r.db.WithContext(ctx).Where(whereOutboundID, m.ID).Find(&items)
 	domainItems := make([]*domain.OutboundItem, len(items))
 	for i, it := range items {
 		domainItems[i] = &domain.OutboundItem{ID: it.ID, SKUID: it.SKUID, SKUCode: it.SKUCode, SKUName: it.SKUName, Quantity: it.Quantity, PickedQty: it.PickedQty, CheckedQty: it.CheckedQty, LocationID: it.LocationID}
@@ -87,7 +92,7 @@ func (r *WarehouseRepository) FindOutbound(ctx context.Context, id string) (*dom
 }
 
 func (r *WarehouseRepository) UpdateOutboundStatus(ctx context.Context, id, status string) error {
-	return r.db.WithContext(ctx).Model(&OutboundOrderModel{}).Where("id = ?", id).Update("status", status).Error
+	return r.db.WithContext(ctx).Model(&OutboundOrderModel{}).Where(whereID, id).Update("status", status).Error
 }
 
 func (r *WarehouseRepository) CreatePickTask(ctx context.Context, task *domain.PickTask) error {
@@ -101,7 +106,7 @@ func (r *WarehouseRepository) CreatePickTask(ctx context.Context, task *domain.P
 
 func (r *WarehouseRepository) ListPickTasks(ctx context.Context, outboundID string) ([]*domain.PickTask, error) {
 	var models []*PickTaskModel
-	err := r.db.WithContext(ctx).Where("outbound_id = ?", outboundID).Find(&models).Error
+	err := r.db.WithContext(ctx).Where(whereOutboundID, outboundID).Find(&models).Error
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +118,7 @@ func (r *WarehouseRepository) ListPickTasks(ctx context.Context, outboundID stri
 }
 
 func (r *WarehouseRepository) UpdatePickQty(ctx context.Context, id string, pickedQty int, status string) error {
-	return r.db.WithContext(ctx).Model(&PickTaskModel{}).Where("id = ?", id).Updates(map[string]interface{}{"picked_quantity": pickedQty, "status": status}).Error
+	return r.db.WithContext(ctx).Model(&PickTaskModel{}).Where(whereID, id).Updates(map[string]interface{}{"picked_quantity": pickedQty, "status": status}).Error
 }
 
 func (r *WarehouseRepository) ListWarehouses(ctx context.Context, tenantID string) ([]*domain.Warehouse, error) {

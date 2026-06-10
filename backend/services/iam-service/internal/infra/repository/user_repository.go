@@ -8,6 +8,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const whereIDAndTenantID = "id = ? AND tenant_id = ?"
+
 // UserRepository GORM 实现的用户仓储
 type UserRepository struct {
 	db *gorm.DB
@@ -50,14 +52,14 @@ func (r *UserRepository) Update(ctx context.Context, user *domain.User) error {
 		updates["last_login_at"] = user.LastLoginAt
 	}
 	return r.db.WithContext(ctx).Model(&UserModel{}).
-		Where("id = ? AND tenant_id = ?", user.ID, user.TenantID).
+		Where(whereIDAndTenantID, user.ID, user.TenantID).
 		Updates(updates).Error
 }
 
 func (r *UserRepository) FindByID(ctx context.Context, tenantID, userID string) (*domain.User, error) {
 	var model UserModel
 	err := r.db.WithContext(ctx).
-		Where("id = ? AND tenant_id = ?", userID, tenantID).
+		Where(whereIDAndTenantID, userID, tenantID).
 		First(&model).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -149,7 +151,7 @@ func (r *UserRepository) List(ctx context.Context, tenantID string, offset, limi
 }
 
 func (r *UserRepository) Delete(ctx context.Context, tenantID, userID string) error {
-	return r.db.WithContext(ctx).Where("id = ? AND tenant_id = ?", userID, tenantID).Delete(&UserModel{}).Error
+	return r.db.WithContext(ctx).Where(whereIDAndTenantID, userID, tenantID).Delete(&UserModel{}).Error
 }
 
 func modelToDomainUser(m *UserModel) *domain.User {

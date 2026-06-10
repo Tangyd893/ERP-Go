@@ -169,6 +169,12 @@ func (c *RabbitMQConsumer) handleDelivery(d *amqp.Delivery) {
 		return
 	}
 
+	// 处理器可能已写入 Inbox（如 P4 协调器），避免重复保存
+	if dup, _ := c.inbox.IsDuplicate(c.ctx, messageID); dup {
+		d.Ack(false)
+		return
+	}
+
 	inboxMsg := &InboxMessage{
 		MessageID:   messageID,
 		EventType:   eventType,

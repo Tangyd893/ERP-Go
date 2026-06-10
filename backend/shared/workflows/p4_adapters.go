@@ -9,6 +9,11 @@ import (
 	"time"
 )
 
+const (
+	headerContentType = "Content-Type"
+	mimeJSON          = "application/json"
+)
+
 // HTTPStockLockAdapter 通过 HTTP 调用 Inventory 服务锁定库存
 type HTTPStockLockAdapter struct {
 	inventoryURL string
@@ -52,7 +57,7 @@ func (a *HTTPStockLockAdapter) postJSON(ctx context.Context, url string, body in
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(headerContentType, mimeJSON)
 	resp, err := a.client.Do(req)
 	if err != nil {
 		return err
@@ -103,7 +108,7 @@ func (a *HTTPOutboundCreatorAdapter) CreateOutbound(ctx context.Context, tenantI
 	if err != nil {
 		return "", err
 	}
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(headerContentType, mimeJSON)
 	resp, err := a.client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("调用仓库服务失败: %w", err)
@@ -154,7 +159,7 @@ func (a *HTTPStockDeductAdapter) postJSON(ctx context.Context, url string, body 
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(headerContentType, mimeJSON)
 	resp, err := a.client.Do(req)
 	if err != nil {
 		return err
@@ -199,7 +204,7 @@ func (a *HTTPInboundHandlerAdapter) ReceiveInbound(ctx context.Context, tenantID
 		if err != nil {
 			return "", fmt.Errorf("创建入库请求失败 sku=%s: %w", item.SKUID, err)
 		}
-		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(headerContentType, mimeJSON)
 		resp, err := a.client.Do(req)
 		if err != nil {
 			return "", fmt.Errorf("调用库存服务增加接口失败 sku=%s: %w", item.SKUID, err)

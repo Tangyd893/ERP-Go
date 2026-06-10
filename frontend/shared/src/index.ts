@@ -12,6 +12,7 @@ import ErrorState from "./components/ErrorState.vue";
 export { ProTable, ProForm, FileUpload, ErrorState };
 
 export { default as apiClient } from "./api";
+export { isDemo } from "./demo";
 export * from "./types";
 
 declare const _default: {

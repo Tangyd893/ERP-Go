@@ -51,6 +51,15 @@ verify: ## 统一验证 (Go + 前端)
 migrate: ## 执行数据库迁移 (需 psql)
 	bash scripts/migrate.sh
 
+dev-infra: ## 启动 Docker 中间件并迁移
+	bash scripts/dev-stack.sh infra
+
+dev-services: ## 启动核心微服务 (gateway/iam/order/inventory/warehouse)
+	bash scripts/dev-stack.sh services
+
+dev-stack: ## 启动中间件 + 迁移 + 核心服务
+	bash scripts/dev-stack.sh all
+
 clean: ## 清理构建产物
 	rm -f coverage.out coverage.html
 

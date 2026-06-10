@@ -73,7 +73,7 @@ func (h *WarehouseHandler) createOutbound(c *gin.Context) {
 		} `json:"items"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 	now := time.Now()
@@ -142,7 +142,7 @@ func (h *WarehouseHandler) pickScan(c *gin.Context) {
 		Qty    int    `json:"quantity" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 	if err := h.appService.PickScan(c.Request.Context(), req.TaskID, req.Qty); err != nil {
@@ -160,7 +160,7 @@ func (h *WarehouseHandler) checkScan(c *gin.Context) {
 		Qty        int    `json:"quantity" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 	if err := h.appService.UpdateOutboundStatus(c.Request.Context(), req.OutboundID, string(domain.OutboundChecked)); err != nil {
@@ -177,7 +177,7 @@ func (h *WarehouseHandler) createPackage(c *gin.Context) {
 		Weight     float64 `json:"weight"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 	if err := h.appService.UpdateOutboundStatus(c.Request.Context(), req.OutboundID, string(domain.OutboundPacked)); err != nil {
@@ -194,7 +194,7 @@ func (h *WarehouseHandler) weigh(c *gin.Context) {
 		Weight     float64 `json:"weight" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 	if err := h.appService.UpdateOutboundStatus(c.Request.Context(), req.OutboundID, string(domain.OutboundWeighed)); err != nil {
@@ -223,7 +223,7 @@ func (h *WarehouseHandler) inboundReceived(c *gin.Context) {
 
 	var data workflows.InboundReceivedData
 	if err := c.ShouldBindJSON(&data); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 

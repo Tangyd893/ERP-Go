@@ -10,6 +10,11 @@ import (
 	"github.com/Tangyd893/ERP-Go/backend/shared/outbox"
 )
 
+const (
+	errCheckIdempotency = "检查幂等失败: %w"
+	errParsePayload     = "解析事件载荷失败: %w"
+)
+
 // OrderApprovedData 订单审核通过事件数据
 type OrderApprovedData struct {
 	OrderID    string `json:"order_id"`
@@ -162,7 +167,7 @@ func (c *P4OutboundFlowCoordinator) SetInboundHandler(h InboundHandler) {
 func (c *P4OutboundFlowCoordinator) HandleOrderApproved(ctx context.Context, messageID string, payload []byte) error {
 	isDup, err := c.inbox.IsDuplicate(ctx, messageID)
 	if err != nil {
-		return fmt.Errorf("检查幂等失败: %w", err)
+		return fmt.Errorf(errCheckIdempotency, err)
 	}
 	if isDup {
 		return nil
@@ -170,7 +175,7 @@ func (c *P4OutboundFlowCoordinator) HandleOrderApproved(ctx context.Context, mes
 
 	var eventData outbox.EventPayload
 	if err := json.Unmarshal(payload, &eventData); err != nil {
-		return fmt.Errorf("解析事件载荷失败: %w", err)
+		return fmt.Errorf(errParsePayload, err)
 	}
 
 	var data OrderApprovedData
@@ -226,7 +231,7 @@ func (c *P4OutboundFlowCoordinator) HandleOrderApproved(ctx context.Context, mes
 func (c *P4OutboundFlowCoordinator) HandleOrderCancelled(ctx context.Context, messageID string, payload []byte) error {
 	isDup, err := c.inbox.IsDuplicate(ctx, messageID)
 	if err != nil {
-		return fmt.Errorf("检查幂等失败: %w", err)
+		return fmt.Errorf(errCheckIdempotency, err)
 	}
 	if isDup {
 		return nil
@@ -234,7 +239,7 @@ func (c *P4OutboundFlowCoordinator) HandleOrderCancelled(ctx context.Context, me
 
 	var eventData outbox.EventPayload
 	if err := json.Unmarshal(payload, &eventData); err != nil {
-		return fmt.Errorf("解析事件载荷失败: %w", err)
+		return fmt.Errorf(errParsePayload, err)
 	}
 
 	var data OrderCancelledData
@@ -263,7 +268,7 @@ func (c *P4OutboundFlowCoordinator) HandleOrderCancelled(ctx context.Context, me
 func (c *P4OutboundFlowCoordinator) HandleOutboundShipped(ctx context.Context, messageID string, payload []byte) error {
 	isDup, err := c.inbox.IsDuplicate(ctx, messageID)
 	if err != nil {
-		return fmt.Errorf("检查幂等失败: %w", err)
+		return fmt.Errorf(errCheckIdempotency, err)
 	}
 	if isDup {
 		return nil
@@ -271,7 +276,7 @@ func (c *P4OutboundFlowCoordinator) HandleOutboundShipped(ctx context.Context, m
 
 	var eventData outbox.EventPayload
 	if err := json.Unmarshal(payload, &eventData); err != nil {
-		return fmt.Errorf("解析事件载荷失败: %w", err)
+		return fmt.Errorf(errParsePayload, err)
 	}
 
 	var data OutboundShippedData
@@ -339,7 +344,7 @@ func (c *P4OutboundFlowCoordinator) HandleOutboundShipped(ctx context.Context, m
 func (c *P4OutboundFlowCoordinator) HandleInboundReceived(ctx context.Context, messageID string, payload []byte) error {
 	isDup, err := c.inbox.IsDuplicate(ctx, messageID)
 	if err != nil {
-		return fmt.Errorf("检查幂等失败: %w", err)
+		return fmt.Errorf(errCheckIdempotency, err)
 	}
 	if isDup {
 		return nil
@@ -347,7 +352,7 @@ func (c *P4OutboundFlowCoordinator) HandleInboundReceived(ctx context.Context, m
 
 	var eventData outbox.EventPayload
 	if err := json.Unmarshal(payload, &eventData); err != nil {
-		return fmt.Errorf("解析事件载荷失败: %w", err)
+		return fmt.Errorf(errParsePayload, err)
 	}
 
 	var data InboundReceivedData

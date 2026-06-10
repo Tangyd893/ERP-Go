@@ -44,6 +44,7 @@ type OutboxStore interface {
 	FetchFailed(ctx context.Context, offset, limit int) ([]*OutboxMessage, int64, error)
 	MarkPublished(ctx context.Context, id int64) error
 	MarkFailed(ctx context.Context, id int64, err error) error
+	Retry(ctx context.Context, id int64) error
 }
 
 // InboxStore Inbox 存储接口

@@ -46,6 +46,7 @@ func (h *OrderHandler) RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/orders/cancel", h.cancelOrder)
 	router.POST("/fulfillment/outbound-shipped", h.outboundShipped)
 	router.GET("/outbox/failed", h.listFailedOutbox)
+	router.POST("/outbox/retry", h.retryOutbox)
 }
 
 func (h *OrderHandler) listOrders(c *gin.Context) {
@@ -96,7 +97,7 @@ func (h *OrderHandler) auditOrder(c *gin.Context) {
 		Approved bool   `json:"approved"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 
@@ -131,7 +132,7 @@ func (h *OrderHandler) markAbnormal(c *gin.Context) {
 		Reason  string `json:"reason" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 
@@ -158,7 +159,7 @@ func (h *OrderHandler) cancelOrder(c *gin.Context) {
 		Reason  string `json:"reason" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 
@@ -182,7 +183,7 @@ func (h *OrderHandler) outboundShipped(c *gin.Context) {
 
 	var data workflows.OutboundShippedData
 	if err := c.ShouldBindJSON(&data); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 
@@ -248,4 +249,25 @@ func (h *OrderHandler) listFailedOutbox(c *gin.Context) {
 	}
 
 	response.PageSuccess(c, items, total, page, pageSize)
+}
+
+func (h *OrderHandler) retryOutbox(c *gin.Context) {
+	if h.outboxStore == nil {
+		response.Error(c, http.StatusServiceUnavailable, sharedErrors.CodeInternalError, "Outbox 存储未就绪")
+		return
+	}
+
+	var req struct {
+		ID int64 `json:"id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
+		return
+	}
+
+	if err := h.outboxStore.Retry(c.Request.Context(), req.ID); err != nil {
+		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "重试失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"retried": true, "id": req.ID})
 }

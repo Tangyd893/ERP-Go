@@ -307,6 +307,88 @@ func TestP4OutboundShippedViaConsumer(t *testing.T) {
 		t.Fatal("幂等消费不应再次更新状态")
 	}
 }
+// TestP4CancelFlow 验证订单取消→释放库存事件写入 Outbox
+func TestP4CancelFlow(t *testing.T) {
+	store := outbox.NewMemOutboxStore()
+	inbox := outbox.NewMemInboxStore()
+	coordinator := workflows.NewP4OutboundFlowCoordinator(store, inbox)
+
+	cancelPayload, _ := outbox.NewEventPayload(events.EventOrderCancelled, workflows.OrderCancelledData{
+		OrderID: "order-cancel-001", TenantID: "default",
+	})
+
+	if err := coordinator.HandleOrderCancelled(context.Background(), "msg-cancel-1", cancelPayload); err != nil {
+		t.Fatalf("HandleOrderCancelled: %v", err)
+	}
+
+	// 验证释放库存事件已写入 Outbox
+	msgs, err := store.FetchPending(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("FetchPending: %v", err)
+	}
+	foundRelease := false
+	for _, m := range msgs {
+		if m.EventType == events.EventStockReleased && m.AggregateID == "order-cancel-001" {
+			foundRelease = true
+			break
+		}
+	}
+	if !foundRelease {
+		t.Fatal("取消订单后应写入库存释放事件到 Outbox")
+	}
+
+	// 幂等验证：重复取消不产生重复 Outbox 消息
+	beforeCount := len(msgs)
+	if err := coordinator.HandleOrderCancelled(context.Background(), "msg-cancel-1", cancelPayload); err != nil {
+		t.Fatalf("幂等取消失败: %v", err)
+	}
+	msgsAfter, _ := store.FetchPending(context.Background(), 10)
+	if len(msgsAfter) != beforeCount {
+		t.Fatalf("幂等取消不应产生新消息，前 %d 后 %d", beforeCount, len(msgsAfter))
+	}
+}
+
+// TestP4OutboundShippedDeductFailure 验证发货时库存扣减失败不影响 Inbox 写入（非幂等错误）
+func TestP4OutboundShippedDeductFailure(t *testing.T) {
+	var inventoryCalled bool
+
+	inventorySrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/inventory/deduct-by-order" {
+			inventoryCalled = true
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]interface{}{"code": 1, "message": "库存扣减失败"})
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer inventorySrv.Close()
+
+	store := outbox.NewMemOutboxStore()
+	inbox := outbox.NewMemInboxStore()
+	coordinator := workflows.NewP4OutboundFlowCoordinator(store, inbox)
+	coordinator.SetStockDeductHandler(workflows.NewHTTPStockDeductAdapter(inventorySrv.URL))
+
+	shipPayload, _ := outbox.NewEventPayload(events.EventOutboundShipped, workflows.OutboundShippedData{
+		OutboundID: "OB-DEDUCT-FAIL", OrderID: "order-deduct-fail", TenantID: "default",
+		WarehouseID: "wh-001",
+		Items:       []workflows.OrderItemData{{SKUID: "sku-001", SKUCode: "A001", SKUName: "商品A", Qty: 1}},
+	})
+
+	err := coordinator.HandleOutboundShipped(context.Background(), "ship-OB-DEDUCT-FAIL", shipPayload)
+	if err == nil {
+		t.Fatal("扣减失败应返回错误")
+	}
+	if !inventoryCalled {
+		t.Fatal("应调用扣减库存接口")
+	}
+
+	// Inbox 不应写入（失败不回滚 Inbox 会导致消息丢失）
+	isDup, _ := inbox.IsDuplicate(context.Background(), "ship-OB-DEDUCT-FAIL")
+	if isDup {
+		t.Fatal("扣减失败时不应写入 Inbox，以便重试")
+	}
+}
+
 type mockStatusUpdater struct {
 	onUpdate func(orderID, status string)
 }

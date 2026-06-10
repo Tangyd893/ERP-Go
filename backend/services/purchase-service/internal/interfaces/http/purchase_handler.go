@@ -51,7 +51,7 @@ func (h *PurchaseHandler) createSupplier(c *gin.Context) {
 		Email        string `json:"email"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 	s := &domain.Supplier{
@@ -87,7 +87,7 @@ func (h *PurchaseHandler) createOrder(c *gin.Context) {
 		TotalAmount float64 `json:"total_amount"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "参数无效")
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
 	order := &domain.PurchaseOrder{

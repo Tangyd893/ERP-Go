@@ -24,8 +24,8 @@ $env:GOCACHE = $GoCache
 $env:GOMODCACHE = $GoModCache
 
 function Write-Step([string]$Message) {
-    Write-Host ""
-    Write-Host "==> $Message" -ForegroundColor Cyan
+    Write-Output ""
+    Write-Output "==> $Message"
 }
 
 function Invoke-Check([string]$Name, [scriptblock]$Block) {
@@ -36,10 +36,10 @@ function Invoke-Check([string]$Name, [scriptblock]$Block) {
     }
 }
 
-Write-Host "ERP-Go verify" -ForegroundColor Green
-Write-Host "Repo: $RepoRoot"
-Write-Host "GOCACHE=$GoCache"
-Write-Host "GOMODCACHE=$GoModCache"
+Write-Output "ERP-Go verify"
+Write-Output "Repo: $RepoRoot"
+Write-Output "GOCACHE=$GoCache"
+Write-Output "GOMODCACHE=$GoModCache"
 
 try {
     Invoke-Check "go vet ./..." {
@@ -79,15 +79,15 @@ try {
             Invoke-Check "npm run build:dashboard" { npm run build:dashboard }
         }
     } else {
-        Write-Host ""
-        Write-Host "Skipping frontend checks (-SkipFrontend)." -ForegroundColor Yellow
+        Write-Output ""
+        Write-Output "Skipping frontend checks (-SkipFrontend)."
     }
 
-    Write-Host ""
-    Write-Host "All checks passed." -ForegroundColor Green
+    Write-Output ""
+    Write-Output "All checks passed."
     exit 0
 } catch {
-    Write-Host ""
-    Write-Host "Verify failed: $_" -ForegroundColor Red
+    Write-Output ""
+    Write-Output "Verify failed: $_"
     exit 1
 }

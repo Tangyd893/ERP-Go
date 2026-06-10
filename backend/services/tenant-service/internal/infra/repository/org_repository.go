@@ -7,6 +7,8 @@ import (
 	"gorm.io/gorm"
 )
 
+const orderSortASC = "sort_order ASC"
+
 // OrgRepository GORM 实现的组织/部门/岗位仓储
 type OrgRepository struct {
 	db *gorm.DB
@@ -35,7 +37,7 @@ func (r *OrgRepository) CreateOrg(ctx context.Context, org *domain.Organization)
 
 func (r *OrgRepository) ListOrgsByTenant(ctx context.Context, tenantID string) ([]*domain.Organization, error) {
 	var models []*OrganizationModel
-	err := r.db.WithContext(ctx).Where("tenant_id = ?", tenantID).Order("sort_order ASC").Find(&models).Error
+	err := r.db.WithContext(ctx).Where("tenant_id = ?", tenantID).Order(orderSortASC).Find(&models).Error
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +69,7 @@ func (r *OrgRepository) CreateDept(ctx context.Context, dept *domain.Department)
 
 func (r *OrgRepository) ListDeptsByOrg(ctx context.Context, orgID string) ([]*domain.Department, error) {
 	var models []*DepartmentModel
-	err := r.db.WithContext(ctx).Where("org_id = ?", orgID).Order("sort_order ASC").Find(&models).Error
+	err := r.db.WithContext(ctx).Where("org_id = ?", orgID).Order(orderSortASC).Find(&models).Error
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +99,7 @@ func (r *OrgRepository) CreatePosition(ctx context.Context, pos *domain.Position
 
 func (r *OrgRepository) ListPositionsByDept(ctx context.Context, deptID string) ([]*domain.Position, error) {
 	var models []*PositionModel
-	err := r.db.WithContext(ctx).Where("dept_id = ?", deptID).Order("sort_order ASC").Find(&models).Error
+	err := r.db.WithContext(ctx).Where("dept_id = ?", deptID).Order(orderSortASC).Find(&models).Error
 	if err != nil {
 		return nil, err
 	}

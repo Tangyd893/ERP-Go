@@ -7,6 +7,11 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	whereTenantID = "tenant_id = ?"
+	orderByDesc   = "created_at DESC"
+)
+
 // AuditRepository GORM 实现的审计仓储
 type AuditRepository struct {
 	db *gorm.DB
@@ -39,14 +44,14 @@ func (r *AuditRepository) Write(ctx context.Context, log *domain.AuditLog) error
 
 func (r *AuditRepository) List(ctx context.Context, tenantID string, offset, limit int) ([]*domain.AuditLog, int64, error) {
 	var total int64
-	if err := r.db.WithContext(ctx).Model(&AuditLogModel{}).Where("tenant_id = ?", tenantID).Count(&total).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(&AuditLogModel{}).Where(whereTenantID, tenantID).Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	var models []*AuditLogModel
 	err := r.db.WithContext(ctx).
-		Where("tenant_id = ?", tenantID).
-		Order("created_at DESC").
+		Where(whereTenantID, tenantID).
+		Order(orderByDesc).
 		Offset(offset).Limit(limit).
 		Find(&models).Error
 	if err != nil {

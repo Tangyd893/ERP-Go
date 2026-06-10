@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import { ref, onMounted } from "vue";
 import { ElMessage } from "element-plus";
-import { apiClient } from "@erp/shared";
+import { apiClient, isDemo } from "@erp/shared";
 import type { ApiResponse, PageData } from "@erp/shared";
-
-const isDemo = import.meta.env.VITE_DEMO_MODE === "true";
 
 interface Notification {
   id: string;
@@ -22,7 +20,7 @@ const unreadCount = ref(0);
 const fetchError = ref(false);
 
 async function fetchNotifications(page: number = 1, pageSize: number = 10) {
-  if (isDemo) {
+  if (isDemo()) {
     notifications.value = [];
     total.value = 0;
     unreadCount.value = 0;

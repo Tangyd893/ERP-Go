@@ -8,6 +8,11 @@ import (
 	"gorm.io/gorm"
 )
 
+const (
+	whereTenantID = "tenant_id = ?"
+	orderByDesc   = "created_at DESC"
+)
+
 type ProductRepository struct {
 	db *gorm.DB
 }
@@ -58,10 +63,10 @@ func (r *ProductRepository) FindSKUByCode(ctx context.Context, tenantID, code st
 
 func (r *ProductRepository) ListSKUs(ctx context.Context, tenantID string, offset, limit int) ([]*domain.SKU, int64, error) {
 	var total int64
-	query := r.db.WithContext(ctx).Model(&SKUModel{}).Where("tenant_id = ?", tenantID)
+	query := r.db.WithContext(ctx).Model(&SKUModel{}).Where(whereTenantID, tenantID)
 	query.Count(&total)
 	var models []*SKUModel
-	query.Order("created_at DESC").Offset(offset).Limit(limit).Find(&models)
+	query.Order(orderByDesc).Offset(offset).Limit(limit).Find(&models)
 	skus := make([]*domain.SKU, len(models))
 	for i, m := range models {
 		skus[i] = &domain.SKU{
