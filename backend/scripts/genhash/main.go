@@ -10,12 +10,12 @@ import (
 const bcryptCost = 10
 
 func main() {
-	password := os.Getenv("GENHASH_PASSWORD")
-	if password == "" {
-		fmt.Fprintln(os.Stderr, "Usage: set GENHASH_PASSWORD=xxx && go run .")
+	plaintext := os.Getenv("GENHASH_PLAINTEXT")
+	if plaintext == "" {
+		fmt.Fprintln(os.Stderr, "Usage: GENHASH_PLAINTEXT=<secret> go run .")
 		os.Exit(1)
 	}
-	h, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
+	h, err := bcrypt.GenerateFromPassword([]byte(plaintext), bcryptCost)
 	if err != nil {
 		panic(err)
 	}

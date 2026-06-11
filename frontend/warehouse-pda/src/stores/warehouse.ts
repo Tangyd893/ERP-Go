@@ -38,10 +38,8 @@ export interface ScanRecord {
 
 // ── Helpers ────────────────────────────────────────────
 
-let _scanSeq = 0;
 function genIdempotencyKey(prefix: string): string {
-  _scanSeq++;
-  return `${prefix}-${Date.now()}-${_scanSeq}-${Math.random().toString(36).slice(2, 8)}`;
+  return `${prefix}-${crypto.randomUUID()}`;
 }
 
 export function getErrorMessage(e: unknown, defaultMsg = "操作失败，请重试"): string {

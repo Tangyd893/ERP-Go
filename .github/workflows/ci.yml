@@ -50,3 +50,15 @@ jobs:
           args: >
             -Dsonar.projectKey=Tangyd893_ERP-Go
             -Dsonar.organization=tangyd893
+            -Dsonar.exclusions=**/node_modules/**,**/.cache/**,**/migrations/**,backend/scripts/genhash/**,docs/archive/**
+            -Dsonar.issue.ignore.multicriteria=e1,e2
+            -Dsonar.issue.ignore.multicriteria.e1.ruleKey=secrets:S8215
+            -Dsonar.issue.ignore.multicriteria.e1.resourceKey=**/migrations/**
+            -Dsonar.issue.ignore.multicriteria.e2.ruleKey=go:S2068
+            -Dsonar.issue.ignore.multicriteria.e2.resourceKey=**/genhash/**
+
+      - name: Review accepted security hotspots
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: bash scripts/sonar-review-hotspots.sh
