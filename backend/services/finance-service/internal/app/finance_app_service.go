@@ -108,11 +108,12 @@ func (s *FinanceAppService) GenerateProfitReport(ctx context.Context, tenantID, 
 			}
 		}
 	}
-	// CNY 转换
-	if currency == "CNY" {
-		report.PurchaseCost = report.PurchaseCost
-	} else {
+	// CNY conversion: costs are already in CNY from cost records
+	if currency != "CNY" {
 		report.PurchaseCost = report.PurchaseCost * rate
+		report.ShippingCost = report.ShippingCost * rate
+		report.CommissionCost = report.CommissionCost * rate
+		report.OtherCost = report.OtherCost * rate
 	}
 	report.Calculate()
 	if err := s.repo.CreateProfitReport(ctx, report); err != nil {

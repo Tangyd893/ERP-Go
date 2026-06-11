@@ -22,7 +22,7 @@ spec:
       serviceAccountName: api-gateway
       containers:
         - name: api-gateway
-          image: erp-go/gateway:latest
+          image: erp-go/gateway:v0.9.0
           ports:
             - containerPort: 8080
           env:
@@ -36,9 +36,11 @@ spec:
             requests:
               cpu: "100m"
               memory: "128Mi"
+              ephemeral-storage: "256Mi"
             limits:
               cpu: "500m"
               memory: "256Mi"
+              ephemeral-storage: "512Mi"
           livenessProbe:
             httpGet:
               path: /health

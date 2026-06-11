@@ -65,8 +65,8 @@ export function useDashboard() {
           shipped: 0,
         };
       }
-    } catch (e) {
-      error.value = "数据加载失败";
+    } catch {
+      error.value = "data load failed";
     } finally {
       loading.value = false;
     }

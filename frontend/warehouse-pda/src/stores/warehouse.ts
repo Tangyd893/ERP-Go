@@ -62,6 +62,18 @@ export function isNetworkError(e: unknown): boolean {
   return !(e as { response?: { status?: number } })?.response?.status;
 }
 
+export async function confirmShip(
+  outboundId: string,
+  trackingNo = "",
+  carrier = "",
+) {
+  await apiClient.post(`/warehouse/outbounds/${outboundId}/ship`, {
+    tracking_no: trackingNo,
+    carrier,
+    idempotency_key: genIdempotencyKey("ship"),
+  });
+}
+
 // ── Store ──────────────────────────────────────────────
 
 export const useWarehouseStore = defineStore("warehouse-pda", () => {
@@ -256,18 +268,6 @@ export const useWarehouseStore = defineStore("warehouse-pda", () => {
     return record;
   }
 
-  async function confirmShip(
-    outboundId: string,
-    trackingNo = "",
-    carrier = "",
-  ) {
-    await apiClient.post(`/warehouse/outbounds/${outboundId}/ship`, {
-      tracking_no: trackingNo,
-      carrier,
-      idempotency_key: genIdempotencyKey("ship"),
-    });
-  }
-
   function clearScanHistory() {
     scanHistory.value = [];
   }
@@ -284,7 +284,6 @@ export const useWarehouseStore = defineStore("warehouse-pda", () => {
     checkScan,
     pack,
     weigh,
-    confirmShip,
     clearScanHistory,
   };
 });
