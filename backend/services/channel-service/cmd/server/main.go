@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/Tangyd893/ERP-Go/backend/services/channel-service/internal/app"
 	"github.com/Tangyd893/ERP-Go/backend/services/channel-service/internal/infra/repository"
 	handler "github.com/Tangyd893/ERP-Go/backend/services/channel-service/internal/interfaces/http"
@@ -23,6 +25,11 @@ func main() {
 			if db != nil {
 				repo := repository.NewChannelRepository(db)
 				channelAppService = app.NewChannelAppService(repo)
+
+				orderURL := os.Getenv("ORDER_SERVICE_URL")
+				if orderURL == "" { orderURL = "http://localhost:8085" }
+				channelAppService.WithOrderClient(app.NewOrderServiceClient(orderURL))
+				channelAppService.RegisterAdapter(app.NewMockAmazonAdapter())
 			}
 			handler.NewChannelHandler(channelAppService).RegisterRoutes(engine.Group("/api/v1/channel"))
 			return nil

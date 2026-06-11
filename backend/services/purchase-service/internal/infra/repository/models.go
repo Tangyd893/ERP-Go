@@ -53,3 +53,15 @@ type InboundOrderModel struct {
 	CreatedAt   time.Time `gorm:"column:created_at"`
 }
 func (InboundOrderModel) TableName() string { return "inbound_orders" }
+
+// InboundItemModel 入库明细持久化模型
+type InboundItemModel struct {
+	ID          string `gorm:"column:id;primaryKey"`
+	InboundID   string `gorm:"column:inbound_id;index"`
+	SKUID       string `gorm:"column:sku_id"`
+	Quantity    int    `gorm:"column:quantity"`
+	ReceivedQty int    `gorm:"column:received_quantity"`
+	PassedQty   int    `gorm:"column:passed_quantity"`
+	RejectedQty int    `gorm:"column:rejected_quantity"`
+}
+func (InboundItemModel) TableName() string { return "inbound_items" }

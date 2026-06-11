@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/Tangyd893/ERP-Go/backend/services/transport-service/internal/app"
 	"github.com/Tangyd893/ERP-Go/backend/services/transport-service/internal/infra/repository"
 	handler "github.com/Tangyd893/ERP-Go/backend/services/transport-service/internal/interfaces/http"
@@ -23,6 +25,12 @@ func main() {
 			if db != nil {
 				repo := repository.NewTransportRepository(db)
 				transportAppService = app.NewTransportAppService(repo)
+
+				channelURL := os.Getenv("CHANNEL_SERVICE_URL")
+				if channelURL == "" {
+					channelURL = "http://localhost:8082"
+				}
+				transportAppService.WithChannelClient(app.NewChannelNotifyClient(channelURL))
 			}
 			handler.NewTransportHandler(transportAppService).RegisterRoutes(engine.Group("/api/v1/transport"))
 			return nil

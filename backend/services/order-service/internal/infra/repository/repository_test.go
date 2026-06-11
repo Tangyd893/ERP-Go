@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -19,8 +20,26 @@ import (
 
 func setupOrderTestDB(t *testing.T) (*gorm.DB, func()) {
 	t.Helper()
-	ctx := context.Background()
 
+	// 优先使用 TEST_DATABASE_URL（外部 PG，无需 Docker）
+	if connStr := getEnv("TEST_DATABASE_URL"); connStr != "" {
+		db, err := gorm.Open(postgres.Open(connStr), &gorm.Config{
+			Logger: gormlogger.Default.LogMode(gormlogger.Warn),
+		})
+		require.NoError(t, err, "连接外部 PostgreSQL 失败")
+		if err := autoMigrateOrder(db); err != nil {
+			t.Logf("自动建表警告: %v", err)
+		}
+		return db, func() {
+			sqlDB, _ := db.DB()
+			if sqlDB != nil {
+				sqlDB.Close()
+			}
+		}
+	}
+
+	// 尝试 testcontainers（需 Docker）
+	ctx := context.Background()
 	pgContainer, err := tcpostgres.Run(ctx,
 		"postgres:16-alpine",
 		tcpostgres.WithDatabase("erp_test"),
@@ -32,7 +51,10 @@ func setupOrderTestDB(t *testing.T) (*gorm.DB, func()) {
 				WithStartupTimeout(60*time.Second),
 		),
 	)
-	require.NoError(t, err, "启动 PostgreSQL 容器失败")
+	if err != nil {
+		t.Skipf("跳过 DB 集成测试（Docker 不可用）: %v\n  提示: 设置 TEST_DATABASE_URL 环境变量可使用外部 PostgreSQL", err)
+		return nil, func() {}
+	}
 
 	connStr, err := pgContainer.ConnectionString(ctx, "sslmode=disable")
 	require.NoError(t, err)
@@ -42,12 +64,7 @@ func setupOrderTestDB(t *testing.T) (*gorm.DB, func()) {
 	})
 	require.NoError(t, err, "连接数据库失败")
 
-	err = db.AutoMigrate(
-		&SalesOrderModel{},
-		&OrderItemModel{},
-		&OrderAddressModel{},
-		&OrderStatusLogModel{},
-	)
+	err = autoMigrateOrder(db)
 	require.NoError(t, err, "自动建表失败")
 
 	cleanup := func() {
@@ -59,6 +76,19 @@ func setupOrderTestDB(t *testing.T) (*gorm.DB, func()) {
 	}
 
 	return db, cleanup
+}
+
+func autoMigrateOrder(db *gorm.DB) error {
+	return db.AutoMigrate(
+		&SalesOrderModel{},
+		&OrderItemModel{},
+		&OrderAddressModel{},
+		&OrderStatusLogModel{},
+	)
+}
+
+func getEnv(key string) string {
+	return os.Getenv(key)
 }
 
 func newTestOrder(tenantID, orderNo string) *domain.SalesOrder {

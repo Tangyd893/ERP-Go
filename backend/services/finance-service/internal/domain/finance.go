@@ -75,6 +75,55 @@ type ProfitReport struct {
 	CreatedAt      time.Time `json:"created_at"`
 }
 
+// ExchangeRate 汇率
+type ExchangeRate struct {
+	ID         string    `json:"id"`
+	TenantID   string    `json:"tenant_id"`
+	FromCurrency string  `json:"from_currency"`
+	ToCurrency string    `json:"to_currency"`
+	Rate       float64   `json:"rate"`
+	Source     string    `json:"source"`
+	CreatedAt  time.Time `json:"created_at"`
+}
+
+// ── 业务方法 ──────────────────────────────────────────────
+
+// NewReceivable 创建应收记录
+func NewReceivable(id, tenantID, orderID string, amount float64, currency string, rate float64) *ArApRecord {
+	return &ArApRecord{
+		ID: id, TenantID: tenantID, Type: ArApReceivable, OrderID: orderID,
+		Amount: amount, Currency: currency, ExchangeRate: rate,
+		AmountCNY: amount * rate, Status: "pending", CreatedAt: time.Now(),
+	}
+}
+
+// NewPayable 创建应付记录
+func NewPayable(id, tenantID, orderID string, amount float64, currency string, rate float64) *ArApRecord {
+	return &ArApRecord{
+		ID: id, TenantID: tenantID, Type: ArApPayable, OrderID: orderID,
+		Amount: amount, Currency: currency, ExchangeRate: rate,
+		AmountCNY: amount * rate, Status: "pending", CreatedAt: time.Now(),
+	}
+}
+
+// NewCostRecord 创建成本记录
+func NewCostRecord(id, tenantID, orderID, skuID, costType string, amount float64, currency string, rate float64) *CostRecord {
+	return &CostRecord{
+		ID: id, TenantID: tenantID, OrderID: orderID, SKUID: skuID,
+		CostType: costType, Amount: amount, Currency: currency,
+		AmountCNY: amount * rate, CreatedAt: time.Now(),
+	}
+}
+
+// NewJournal 创建财务流水
+func NewJournal(id, tenantID, orderID, changeType string, amount, before, after float64, currency, idempotencyKey string) *FinanceJournal {
+	return &FinanceJournal{
+		ID: id, TenantID: tenantID, OrderID: orderID, ChangeType: changeType,
+		Amount: amount, BeforeAmount: before, AfterAmount: after,
+		Currency: currency, IdempotencyKey: idempotencyKey, CreatedAt: time.Now(),
+	}
+}
+
 // FinanceJournal 财务流水
 type FinanceJournal struct {
 	ID            string    `json:"id"`

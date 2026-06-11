@@ -66,6 +66,78 @@ func (r *TransportRepository) UpdateShipmentStatus(ctx context.Context, id, stat
 	return r.db.WithContext(ctx).Model(&ShipmentModel{}).Where("id = ?", id).Updates(updates).Error
 }
 
+// ListShippingRules 按租户查询物流规则（按优先级升序）
+func (r *TransportRepository) ListShippingRules(ctx context.Context, tenantID string) ([]*domain.ShippingRule, error) {
+	var models []*ShippingRuleModel
+	err := r.db.WithContext(ctx).Where(whereTenantID, tenantID).
+		Order("priority ASC").Find(&models).Error
+	if err != nil {
+		return nil, err
+	}
+	rules := make([]*domain.ShippingRule, len(models))
+	for i, m := range models {
+		var codes []string
+		if m.CountryCodes != "" {
+			codes = parseJSONArray(m.CountryCodes)
+		}
+		rules[i] = &domain.ShippingRule{
+			ID: m.ID, TenantID: m.TenantID, Name: m.Name, Priority: m.Priority,
+			CountryCodes: codes, MinWeight: m.MinWeight, MaxWeight: m.MaxWeight,
+			CarrierServiceID: m.CarrierServiceID,
+		}
+	}
+	return rules, nil
+}
+
+// ListCarrierServices 按物流商查询物流产品
+func (r *TransportRepository) ListCarrierServices(ctx context.Context, carrierID string) ([]*domain.CarrierService, error) {
+	var models []*CarrierServiceModel
+	err := r.db.WithContext(ctx).Where("carrier_id = ?", carrierID).Find(&models).Error
+	if err != nil {
+		return nil, err
+	}
+	services := make([]*domain.CarrierService, len(models))
+	for i, m := range models {
+		services[i] = &domain.CarrierService{
+			ID: m.ID, CarrierID: m.CarrierID, Name: m.Name, Code: m.Code, ServiceType: m.ServiceType,
+		}
+	}
+	return services, nil
+}
+
+// FindCarrierService 按 ID 查询物流产品
+func (r *TransportRepository) FindCarrierService(ctx context.Context, id string) (*domain.CarrierService, error) {
+	var m CarrierServiceModel
+	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&m).Error; err != nil {
+		return nil, err
+	}
+	return &domain.CarrierService{
+		ID: m.ID, CarrierID: m.CarrierID, Name: m.Name, Code: m.Code, ServiceType: m.ServiceType,
+	}, nil
+}
+
+// parseJSONArray 解析 JSON 字符串数组
+func parseJSONArray(s string) []string {
+	var arr []string
+	// 简单解析 ["a","b"] 格式
+	inQuote := false
+	cur := ""
+	for _, c := range s {
+		if c == '"' {
+			inQuote = !inQuote
+			if !inQuote && cur != "" {
+				arr = append(arr, cur)
+				cur = ""
+			}
+			continue
+		}
+		if inQuote {
+			cur += string(c)
+		}
+	}
+	return arr
+}
+
 func (r *TransportRepository) ListCarriers(ctx context.Context, tenantID string) ([]*domain.Carrier, error) {
 	var models []*CarrierModel
 	err := r.db.WithContext(ctx).Where(whereTenantID, tenantID).Find(&models).Error

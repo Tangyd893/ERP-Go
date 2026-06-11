@@ -121,6 +121,122 @@ func (r *WarehouseRepository) UpdatePickQty(ctx context.Context, id string, pick
 	return r.db.WithContext(ctx).Model(&PickTaskModel{}).Where(whereID, id).Updates(map[string]interface{}{"picked_quantity": pickedQty, "status": status}).Error
 }
 
+// FindPickTask 按 ID 查询拣货任务
+func (r *WarehouseRepository) FindPickTask(ctx context.Context, id string) (*domain.PickTask, error) {
+	var m PickTaskModel
+	if err := r.db.WithContext(ctx).Where(whereID, id).First(&m).Error; err != nil {
+		return nil, err
+	}
+	return &domain.PickTask{
+		ID: m.ID, WaveID: m.WaveID, OutboundID: m.OutboundID,
+		SKUID: m.SKUID, SKUCode: m.SKUCode, SKUName: m.SKUName,
+		Quantity: m.Quantity, PickedQty: m.PickedQty,
+		LocationCode: m.LocationCode, Status: m.Status, PickerID: m.PickerID,
+	}, nil
+}
+
+// FindOutboundItem 按出库单 + SKU 查询明细
+func (r *WarehouseRepository) FindOutboundItem(ctx context.Context, outboundID, skuID string) (*domain.OutboundItem, error) {
+	var m OutboundItemModel
+	if err := r.db.WithContext(ctx).Where("outbound_id = ? AND sku_id = ?", outboundID, skuID).First(&m).Error; err != nil {
+		return nil, err
+	}
+	return &domain.OutboundItem{
+		ID: m.ID, SKUID: m.SKUID, SKUCode: m.SKUCode, SKUName: m.SKUName,
+		Quantity: m.Quantity, PickedQty: m.PickedQty, CheckedQty: m.CheckedQty, LocationID: m.LocationID,
+	}, nil
+}
+
+// UpdateCheckedQty 更新出库明细已复核数量
+func (r *WarehouseRepository) UpdateCheckedQty(ctx context.Context, itemID string, qty int) error {
+	return r.db.WithContext(ctx).Model(&OutboundItemModel{}).Where(whereID, itemID).Update("checked_quantity", qty).Error
+}
+
+// CreatePackage 创建包裹记录
+func (r *WarehouseRepository) CreatePackage(ctx context.Context, pkg *domain.Package) error {
+	return r.db.WithContext(ctx).Create(&PackageModel{
+		ID: pkg.ID, OutboundID: pkg.OutboundID,
+		TrackingNo: pkg.TrackingNo, CarrierCode: pkg.CarrierCode,
+		Weight: pkg.Weight, Length: pkg.Length, Width: pkg.Width, Height: pkg.Height,
+		LabelURL: pkg.LabelURL, CreatedAt: pkg.CreatedAt,
+	}).Error
+}
+
+// ── Wave 波次仓储 ──────────────────────────────────────
+
+// CreateWave 创建波次（含关联出库单）
+func (r *WarehouseRepository) CreateWave(ctx context.Context, wave *domain.Wave) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&WaveModel{
+			ID: wave.ID, WarehouseID: wave.WarehouseID,
+			Name: wave.Name, Status: wave.Status, CreatedAt: wave.CreatedAt,
+		}).Error; err != nil {
+			return err
+		}
+		for _, obID := range wave.OutboundIDs {
+			if err := tx.Create(&WaveOutboundModel{
+				ID: fmt.Sprintf("WO-%s-%s", wave.ID, obID),
+				WaveID: wave.ID, OutboundID: obID,
+			}).Error; err != nil {
+				return err
+			}
+			// 出库单状态 → waved
+			if err := tx.Model(&OutboundOrderModel{}).Where(whereID, obID).
+				Update("status", string(domain.OutboundWaved)).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// FindWave 查询波次
+func (r *WarehouseRepository) FindWave(ctx context.Context, id string) (*domain.Wave, error) {
+	var m WaveModel
+	if err := r.db.WithContext(ctx).Where(whereID, id).First(&m).Error; err != nil {
+		return nil, err
+	}
+	var obIDs []*WaveOutboundModel
+	r.db.WithContext(ctx).Where("wave_id = ?", m.ID).Find(&obIDs)
+	ids := make([]string, len(obIDs))
+	for i, ob := range obIDs {
+		ids[i] = ob.OutboundID
+	}
+	return &domain.Wave{
+		ID: m.ID, WarehouseID: m.WarehouseID, Name: m.Name,
+		Status: m.Status, OutboundIDs: ids, CreatedAt: m.CreatedAt,
+	}, nil
+}
+
+// ListWaves 按仓库列出波次
+func (r *WarehouseRepository) ListWaves(ctx context.Context, warehouseID string) ([]*domain.Wave, error) {
+	var models []*WaveModel
+	err := r.db.WithContext(ctx).Where("warehouse_id = ?", warehouseID).
+		Order("created_at DESC").Find(&models).Error
+	if err != nil {
+		return nil, err
+	}
+	waves := make([]*domain.Wave, len(models))
+	for i, m := range models {
+		var obIDs []*WaveOutboundModel
+		r.db.WithContext(ctx).Where("wave_id = ?", m.ID).Find(&obIDs)
+		ids := make([]string, len(obIDs))
+		for j, ob := range obIDs {
+			ids[j] = ob.OutboundID
+		}
+		waves[i] = &domain.Wave{
+			ID: m.ID, WarehouseID: m.WarehouseID, Name: m.Name,
+			Status: m.Status, OutboundIDs: ids, CreatedAt: m.CreatedAt,
+		}
+	}
+	return waves, nil
+}
+
+// UpdateWaveStatus 更新波次状态
+func (r *WarehouseRepository) UpdateWaveStatus(ctx context.Context, id, status string) error {
+	return r.db.WithContext(ctx).Model(&WaveModel{}).Where(whereID, id).Update("status", status).Error
+}
+
 func (r *WarehouseRepository) ListWarehouses(ctx context.Context, tenantID string) ([]*domain.Warehouse, error) {
 	var models []*WarehouseModel
 	err := r.db.WithContext(ctx).Where("tenant_id = ?", tenantID).Find(&models).Error

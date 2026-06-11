@@ -53,3 +53,36 @@ type PickTaskModel struct {
 	PickerID     string `gorm:"column:picker_id"`
 }
 func (PickTaskModel) TableName() string { return "pick_tasks" }
+
+// WaveModel 波次持久化模型
+type WaveModel struct {
+	ID          string    `gorm:"column:id;primaryKey"`
+	WarehouseID string    `gorm:"column:warehouse_id;index"`
+	Name        string    `gorm:"column:name"`
+	Status      string    `gorm:"column:status;index"`
+	CreatedAt   time.Time `gorm:"column:created_at"`
+}
+func (WaveModel) TableName() string { return "waves" }
+
+// WaveOutboundModel 波次-出库单关联
+type WaveOutboundModel struct {
+	ID         string `gorm:"column:id;primaryKey"`
+	WaveID     string `gorm:"column:wave_id;index"`
+	OutboundID string `gorm:"column:outbound_id;uniqueIndex"`
+}
+func (WaveOutboundModel) TableName() string { return "wave_outbounds" }
+
+// PackageModel 包裹持久化模型
+type PackageModel struct {
+	ID          string    `gorm:"column:id;primaryKey"`
+	OutboundID  string    `gorm:"column:outbound_id;index"`
+	TrackingNo  string    `gorm:"column:tracking_no"`
+	CarrierCode string    `gorm:"column:carrier_code"`
+	Weight      float64   `gorm:"column:weight"`
+	Length      float64   `gorm:"column:length"`
+	Width       float64   `gorm:"column:width"`
+	Height      float64   `gorm:"column:height"`
+	LabelURL    string    `gorm:"column:label_url"`
+	CreatedAt   time.Time `gorm:"column:created_at"`
+}
+func (PackageModel) TableName() string { return "packages" }

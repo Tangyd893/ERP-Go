@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // PurchaseStatus 采购单状态
 type PurchaseStatus string
@@ -67,6 +70,131 @@ type InboundOrder struct {
 	Status       string         `json:"status"` // receiving, checking, completed
 	Items        []*InboundItem `json:"items"`
 	CreatedAt    time.Time      `json:"created_at"`
+}
+
+// ── 采购单业务规则 ──────────────────────────────────────
+
+// Submit 提交审核
+func (o *PurchaseOrder) Submit() error {
+	if o.Status != PurchaseDraft {
+		return fmt.Errorf("采购单状态 %s 不可提交", o.Status)
+	}
+	o.Status = PurchasePending
+	o.UpdatedAt = time.Now()
+	return nil
+}
+
+// Approve 审核通过
+func (o *PurchaseOrder) Approve() error {
+	if o.Status != PurchasePending {
+		return fmt.Errorf("采购单状态 %s 不可审核", o.Status)
+	}
+	o.Status = PurchaseApproved
+	o.UpdatedAt = time.Now()
+	return nil
+}
+
+// MarkOrdered 确认下单给供应商
+func (o *PurchaseOrder) MarkOrdered() error {
+	if o.Status != PurchaseApproved {
+		return fmt.Errorf("采购单状态 %s 不可下单", o.Status)
+	}
+	o.Status = PurchaseOrdered
+	o.UpdatedAt = time.Now()
+	return nil
+}
+
+// RegisterReceipt 登记收货（部分或全部）
+func (o *PurchaseOrder) RegisterReceipt() error {
+	if o.Status != PurchaseOrdered && o.Status != PurchasePartial {
+		return fmt.Errorf("采购单状态 %s 不可收货", o.Status)
+	}
+	o.Status = PurchasePartial
+	o.UpdatedAt = time.Now()
+	return nil
+}
+
+// Complete 完成采购
+func (o *PurchaseOrder) Complete() error {
+	if o.Status != PurchasePartial {
+		return fmt.Errorf("采购单状态 %s 不可完成", o.Status)
+	}
+	o.Status = PurchaseCompleted
+	o.UpdatedAt = time.Now()
+	return nil
+}
+
+// Cancel 取消采购
+func (o *PurchaseOrder) Cancel() error {
+	if o.Status == PurchaseCompleted || o.Status == PurchaseCancelled {
+		return fmt.Errorf("采购单状态 %s 不可取消", o.Status)
+	}
+	o.Status = PurchaseCancelled
+	o.UpdatedAt = time.Now()
+	return nil
+}
+
+// UpdateReceivedQty 更新采购明细已收数量
+func (item *PurchaseItem) UpdateReceivedQty(qty int) error {
+	if qty <= 0 {
+		return fmt.Errorf("收货数量必须大于 0")
+	}
+	if item.ReceivedQty+qty > item.Quantity {
+		return fmt.Errorf("收货数量 %d 超过订购量 %d", item.ReceivedQty+qty, item.Quantity)
+	}
+	item.ReceivedQty += qty
+	return nil
+}
+
+// ── 入库单业务规则 ──────────────────────────────────────
+
+// InboundStatus 入库单状态
+type InboundStatus string
+
+const (
+	InboundReceiving InboundStatus = "receiving"  // 收货中
+	InboundQA        InboundStatus = "qa"         // 质检中
+	InboundPassed    InboundStatus = "passed"     // 合格入库
+	InboundRejected  InboundStatus = "rejected"   // 退货
+)
+
+// NewInboundOrder 创建入库单
+func NewInboundOrder(id, tenantID, purchaseID, warehouseID string) *InboundOrder {
+	return &InboundOrder{
+		ID:          id,
+		TenantID:    tenantID,
+		PurchaseID:  purchaseID,
+		WarehouseID: warehouseID,
+		Status:      string(InboundReceiving),
+		CreatedAt:   time.Now(),
+	}
+}
+
+// StartQA 开始质检
+func (in *InboundOrder) StartQA() error {
+	if in.Status != string(InboundReceiving) {
+		return fmt.Errorf("入库单状态 %s 不可开始质检", in.Status)
+	}
+	in.Status = string(InboundQA)
+	return nil
+}
+
+// MarkRejected 标记退货
+func (in *InboundOrder) MarkRejected() error {
+	if in.Status != string(InboundQA) {
+		return fmt.Errorf("入库单状态 %s 不可退货", in.Status)
+	}
+	in.Status = string(InboundRejected)
+	return nil
+}
+
+// CompleteInbound 完成入库（合格入库）
+func (in *InboundOrder) CompleteInbound() error {
+	if in.Status != string(InboundQA) {
+		return fmt.Errorf("入库单状态 %s 不可完成入库", in.Status)
+	}
+	in.Status = string(InboundPassed)
+	return nil
 }
 
 // InboundItem 入库明细

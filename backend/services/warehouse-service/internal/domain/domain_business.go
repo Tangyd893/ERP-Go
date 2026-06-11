@@ -85,6 +85,63 @@ func (o *OutboundOrder) Ship() error {
 	return nil
 }
 
+// ── Wave 波次业务规则 ──────────────────────────────────
+
+// WaveStatus 波次状态
+type WaveStatus string
+
+const (
+	WaveCreated  WaveStatus = "created"
+	WavePicking  WaveStatus = "picking"
+	WaveCompleted WaveStatus = "completed"
+)
+
+// NewWave 创建波次
+func NewWave(id, warehouseID, name string) *Wave {
+	return &Wave{
+		ID:          id,
+		WarehouseID: warehouseID,
+		Name:        name,
+		Status:      string(WaveCreated),
+		CreatedAt:   time.Now(),
+	}
+}
+
+// AddOutbound 向波次添加出库单
+func (w *Wave) AddOutbound(outboundID string) error {
+	if w.Status != string(WaveCreated) {
+		return fmt.Errorf("波次状态 %s 不可添加出库单", w.Status)
+	}
+	for _, id := range w.OutboundIDs {
+		if id == outboundID {
+			return fmt.Errorf("出库单 %s 已在波次中", outboundID)
+		}
+	}
+	w.OutboundIDs = append(w.OutboundIDs, outboundID)
+	return nil
+}
+
+// StartPicking 开始波次拣货
+func (w *Wave) StartPicking() error {
+	if w.Status != string(WaveCreated) {
+		return fmt.Errorf("波次状态 %s 不能开始拣货", w.Status)
+	}
+	if len(w.OutboundIDs) == 0 {
+		return fmt.Errorf("波次没有出库单")
+	}
+	w.Status = string(WavePicking)
+	return nil
+}
+
+// Complete 完成波次
+func (w *Wave) Complete() error {
+	if w.Status != string(WavePicking) {
+		return fmt.Errorf("波次状态 %s 不能完成", w.Status)
+	}
+	w.Status = string(WaveCompleted)
+	return nil
+}
+
 // MarkAbnormal 标记异常
 func (o *OutboundOrder) MarkAbnormal(reason string) error {
 	if o.Status == OutboundShipped || o.Status == OutboundAbnormal {

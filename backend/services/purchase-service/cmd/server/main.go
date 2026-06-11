@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+
 	"github.com/Tangyd893/ERP-Go/backend/services/purchase-service/internal/app"
 	"github.com/Tangyd893/ERP-Go/backend/services/purchase-service/internal/infra/repository"
 	handler "github.com/Tangyd893/ERP-Go/backend/services/purchase-service/internal/interfaces/http"
@@ -23,6 +25,12 @@ func main() {
 			if db != nil {
 				repo := repository.NewPurchaseRepository(db)
 				purchaseAppService = app.NewPurchaseAppService(repo)
+
+				inventoryURL := os.Getenv("INVENTORY_SERVICE_URL")
+				if inventoryURL == "" {
+					inventoryURL = "http://localhost:8086"
+				}
+				purchaseAppService.WithInventoryClient(app.NewInventoryNotifyClient(inventoryURL))
 			}
 			handler.NewPurchaseHandler(purchaseAppService).RegisterRoutes(engine.Group("/api/v1/purchase"))
 			return nil

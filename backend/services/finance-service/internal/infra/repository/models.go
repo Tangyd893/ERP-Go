@@ -80,3 +80,15 @@ type FinanceJournalModel struct {
 	CreatedAt      time.Time `gorm:"column:created_at"`
 }
 func (FinanceJournalModel) TableName() string { return "finance_journals" }
+
+// ExchangeRateModel 汇率持久化模型
+type ExchangeRateModel struct {
+	ID           string    `gorm:"column:id;primaryKey"`
+	TenantID     string    `gorm:"column:tenant_id;index"`
+	FromCurrency string    `gorm:"column:from_currency"`
+	ToCurrency   string    `gorm:"column:to_currency"`
+	Rate         float64   `gorm:"column:rate"`
+	Source       string    `gorm:"column:source"`
+	CreatedAt    time.Time `gorm:"column:created_at"`
+}
+func (ExchangeRateModel) TableName() string { return "exchange_rates" }

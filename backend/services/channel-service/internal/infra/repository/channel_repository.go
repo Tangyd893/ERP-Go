@@ -55,6 +55,17 @@ func (r *ChannelRepository) CreateImportTask(ctx context.Context, task *domain.O
 	}).Error
 }
 
+// CreateSyncTask 创建同步任务（tracking_upload / order_sync 等）
+func (r *ChannelRepository) CreateSyncTask(ctx context.Context, task *domain.SyncTask) error {
+	return r.db.WithContext(ctx).Create(&SyncTaskModel{
+		ID: task.ID, TenantID: task.TenantID, StoreID: task.StoreID,
+		TaskType: task.TaskType, Status: task.Status,
+		TotalCount: task.TotalCount, SuccessCount: task.SuccessCnt,
+		FailCount: task.FailedCnt, ErrorMsg: task.ErrorMsg,
+		StartedAt: task.StartedAt, EndedAt: task.FinishedAt, CreatedAt: task.CreatedAt,
+	}).Error
+}
+
 func (r *ChannelRepository) FindImportTaskByKey(ctx context.Context, idempotencyKey string) (*domain.OrderImportTask, error) {
 	var m OrderImportTaskModel
 	err := r.db.WithContext(ctx).Where("idempotency_key = ?", idempotencyKey).First(&m).Error

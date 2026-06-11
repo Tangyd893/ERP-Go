@@ -77,6 +77,85 @@ func (r *PurchaseRepository) UpdatePurchaseStatus(ctx context.Context, id, statu
 	return r.db.WithContext(ctx).Model(&PurchaseOrderModel{}).Where("id = ?", id).Update("status", status).Error
 }
 
+// FindPurchaseOrder 按 ID 查询采购单
+func (r *PurchaseRepository) FindPurchaseOrder(ctx context.Context, id string) (*domain.PurchaseOrder, error) {
+	var m PurchaseOrderModel
+	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&m).Error; err != nil {
+		return nil, err
+	}
+	var items []*PurchaseItemModel
+	r.db.WithContext(ctx).Where("order_id = ?", m.ID).Find(&items)
+	domainItems := make([]*domain.PurchaseItem, len(items))
+	for i, it := range items {
+		domainItems[i] = &domain.PurchaseItem{ID: it.ID, OrderID: m.ID, SKUID: it.SKUID, SKUCode: it.SKUCode, SKUName: it.SKUName, Quantity: it.Quantity, ReceivedQty: it.ReceivedQty, UnitPrice: it.UnitPrice, TotalPrice: it.TotalPrice}
+	}
+	return &domain.PurchaseOrder{ID: m.ID, TenantID: m.TenantID, SupplierID: m.SupplierID, SupplierName: m.SupplierName, OrderNo: m.OrderNo, Status: domain.PurchaseStatus(m.Status), Currency: m.Currency, TotalAmount: m.TotalAmount, Items: domainItems, ExpectedDate: m.ExpectedDate, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt}, nil
+}
+
+// FindPurchaseItem 按 ID 查询采购明细
+func (r *PurchaseRepository) FindPurchaseItem(ctx context.Context, itemID string) (*domain.PurchaseItem, error) {
+	var m PurchaseItemModel
+	if err := r.db.WithContext(ctx).Where("id = ?", itemID).First(&m).Error; err != nil {
+		return nil, err
+	}
+	return &domain.PurchaseItem{ID: m.ID, OrderID: m.OrderID, SKUID: m.SKUID, SKUCode: m.SKUCode, SKUName: m.SKUName, Quantity: m.Quantity, ReceivedQty: m.ReceivedQty, UnitPrice: m.UnitPrice, TotalPrice: m.TotalPrice}, nil
+}
+
+// UpdateReceivedQty 更新采购项已收数量
+func (r *PurchaseRepository) UpdateReceivedQty(ctx context.Context, itemID string, qty int) error {
+	return r.db.WithContext(ctx).Model(&PurchaseItemModel{}).Where("id = ?", itemID).Update("received_quantity", qty).Error
+}
+
+// CreateInboundOrder 创建入库单（含明细）
+func (r *PurchaseRepository) CreateInboundOrder(ctx context.Context, in *domain.InboundOrder) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&InboundOrderModel{
+			ID: in.ID, TenantID: in.TenantID, PurchaseID: in.PurchaseID,
+			WarehouseID: in.WarehouseID, Status: in.Status, CreatedAt: in.CreatedAt,
+		}).Error; err != nil {
+			return err
+		}
+		for _, item := range in.Items {
+			if err := tx.Create(&InboundItemModel{
+				ID: item.ID, InboundID: in.ID, SKUID: item.SKUID,
+				Quantity: item.Quantity, ReceivedQty: item.ReceivedQty,
+				PassedQty: item.PassedQty, RejectedQty: item.RejectedQty,
+			}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// FindInboundOrder 查询入库单
+func (r *PurchaseRepository) FindInboundOrder(ctx context.Context, id string) (*domain.InboundOrder, error) {
+	var m InboundOrderModel
+	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&m).Error; err != nil {
+		return nil, err
+	}
+	var items []*InboundItemModel
+	r.db.WithContext(ctx).Where("inbound_id = ?", m.ID).Find(&items)
+	domainItems := make([]*domain.InboundItem, len(items))
+	for i, it := range items {
+		domainItems[i] = &domain.InboundItem{ID: it.ID, InboundID: m.ID, SKUID: it.SKUID, Quantity: it.Quantity, ReceivedQty: it.ReceivedQty, PassedQty: it.PassedQty, RejectedQty: it.RejectedQty}
+	}
+	return &domain.InboundOrder{ID: m.ID, TenantID: m.TenantID, PurchaseID: m.PurchaseID, WarehouseID: m.WarehouseID, Status: m.Status, Items: domainItems, CreatedAt: m.CreatedAt}, nil
+}
+
+// UpdateInboundStatus 更新入库单状态
+func (r *PurchaseRepository) UpdateInboundStatus(ctx context.Context, id, status string) error {
+	return r.db.WithContext(ctx).Model(&InboundOrderModel{}).Where("id = ?", id).Update("status", status).Error
+}
+
+// UpdateInboundItemQA 更新入库明细质检结果
+func (r *PurchaseRepository) UpdateInboundItemQA(ctx context.Context, itemID string, passed, rejected int) error {
+	return r.db.WithContext(ctx).Model(&InboundItemModel{}).Where("id = ?", itemID).Updates(map[string]interface{}{
+		"passed_quantity":   passed,
+		"rejected_quantity": rejected,
+	}).Error
+}
+
 func (r *PurchaseRepository) ListInboundOrders(ctx context.Context, tenantID string, offset, limit int) ([]*domain.InboundOrder, int64, error) {
 	var total int64
 	query := r.db.WithContext(ctx).Model(&InboundOrderModel{}).Where(whereTenantID, tenantID)

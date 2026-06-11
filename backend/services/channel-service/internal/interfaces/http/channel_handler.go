@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Tangyd893/ERP-Go/backend/services/channel-service/internal/app"
@@ -30,8 +31,11 @@ func (h *ChannelHandler) RegisterRoutes(router *gin.RouterGroup) {
 	router.GET("/stores", h.listStores)
 	router.POST("/stores", h.createStore)
 	router.POST("/orders/import", h.importOrders)
+	router.POST("/orders/import-csv", h.importCSV)
+	router.POST("/orders/fetch-platform", h.fetchPlatform)
 	router.GET("/import-tasks", h.listImportTasks)
 	router.GET("/sync-tasks", h.listSyncTasks)
+	router.POST("/tracking-upload", h.trackingUpload)
 }
 
 func (h *ChannelHandler) listStores(c *gin.Context) {
@@ -146,4 +150,83 @@ func (h *ChannelHandler) listSyncTasks(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 	response.PageSuccess(c, []interface{}{}, 0, page, pageSize)
+}
+
+// importCSV 导入 CSV 订单文件
+func (h *ChannelHandler) importCSV(c *gin.Context) {
+	if h.fallbackMode { c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通"}); return }
+	var req struct {
+		StoreID  string `json:"store_id" binding:"required"`
+		FileName string `json:"file_name"`
+		CSVData  string `json:"csv_data" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
+		return
+	}
+	task, success, failed, err := h.appService.ImportCSVOrders(
+		c.Request.Context(), c.GetString("tenant_id"),
+		req.StoreID, req.FileName, strings.NewReader(req.CSVData),
+	)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "CSV 导入失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{
+		"imported":      true,
+		"task_id":       task.ID,
+		"total":         task.TotalRows,
+		"success_count": success,
+		"failed_count":  failed,
+	})
+}
+
+// fetchPlatform 通过平台适配器拉取订单
+func (h *ChannelHandler) fetchPlatform(c *gin.Context) {
+	if h.fallbackMode { c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通"}); return }
+	var req struct {
+		StoreID  string `json:"store_id" binding:"required"`
+		Platform string `json:"platform" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
+		return
+	}
+	orders, err := h.appService.FetchPlatformOrders(c.Request.Context(), c.GetString("tenant_id"), req.StoreID, req.Platform)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "拉取平台订单失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"count": len(orders), "orders": orders})
+}
+
+// trackingUpload 创建发货回传任务（transport-service 调用）
+func (h *ChannelHandler) trackingUpload(c *gin.Context) {
+	if h.fallbackMode {
+		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通"})
+		return
+	}
+	var req struct {
+		StoreID     string `json:"store_id" binding:"required"`
+		TrackingNo  string `json:"tracking_no" binding:"required"`
+		CarrierCode string `json:"carrier_code"`
+		OrderNo     string `json:"order_no"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
+		return
+	}
+	task, err := h.appService.CreateTrackingUpload(
+		c.Request.Context(),
+		c.GetString("tenant_id"),
+		req.StoreID,
+		req.TrackingNo,
+		req.CarrierCode,
+		req.OrderNo,
+	)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "创建回传任务失败: "+err.Error())
+		return
+	}
+	response.Success(c, task)
 }

@@ -25,8 +25,10 @@ func NewTransportHandler(appService *app.TransportAppService) *TransportHandler 
 func (h *TransportHandler) RegisterRoutes(router *gin.RouterGroup) {
 	router.GET("/carriers", h.listCarriers)
 	router.GET("/rules", h.listRules)
+	router.POST("/match-carrier", h.matchCarrier)
 	router.POST("/shipments", h.createShipment)
 	router.POST("/labels", h.createLabel)
+	router.POST("/labels/generate", h.generateLabel)
 	router.GET("/tracking", h.getTracking)
 }
 
@@ -103,4 +105,71 @@ func (h *TransportHandler) getTracking(c *gin.Context) {
 		return
 	}
 	response.Success(c, s)
+}
+
+// matchCarrier 物流渠道匹配：按重量+目的地匹配最优物流产品
+func (h *TransportHandler) matchCarrier(c *gin.Context) {
+	if h.fallbackMode { c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通"}); return }
+	var req struct {
+		Weight  float64 `json:"weight" binding:"required"`
+		Country string  `json:"country" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
+		return
+	}
+	tenantID := c.GetString("tenant_id")
+	result, err := h.appService.MatchCarrier(c.Request.Context(), tenantID, req.Weight, req.Country)
+	if err != nil {
+		response.Error(c, http.StatusNotFound, sharedErrors.CodeInvalidParameter, "物流匹配失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{
+		"matched":         true,
+		"rule_id":         result.RuleID,
+		"rule_name":       result.RuleName,
+		"carrier_service": result.CarrierService,
+	})
+}
+
+// generateLabel 调用适配器生成面单
+func (h *TransportHandler) generateLabel(c *gin.Context) {
+	if h.fallbackMode { c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通"}); return }
+	var req struct {
+		ShipmentID string `json:"shipment_id" binding:"required"`
+		OrderNo    string `json:"order_no"`
+		Weight     float64 `json:"weight"`
+		Country    string `json:"country"`
+		Address    struct {
+			Name       string `json:"name"`
+			Phone      string `json:"phone"`
+			Country    string `json:"country"`
+			State      string `json:"state"`
+			City       string `json:"city"`
+			District   string `json:"district"`
+			StreetLine string `json:"street_line"`
+			PostalCode string `json:"postal_code"`
+		} `json:"address"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
+		return
+	}
+	addr := app.AddressInfo{
+		Name: req.Address.Name, Phone: req.Address.Phone, Country: req.Address.Country,
+		State: req.Address.State, City: req.Address.City, District: req.Address.District,
+		StreetLine: req.Address.StreetLine, PostalCode: req.Address.PostalCode,
+	}
+	resp, err := h.appService.GenerateLabel(c.Request.Context(), req.ShipmentID, req.OrderNo, req.Country, req.Weight, addr)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "生成面单失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{
+		"created":      true,
+		"tracking_no":  resp.TrackingNo,
+		"label_url":    resp.LabelURL,
+		"carrier_code": resp.CarrierCode,
+		"service_code": resp.ServiceCode,
+	})
 }

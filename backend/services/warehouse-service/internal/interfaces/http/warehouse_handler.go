@@ -36,6 +36,7 @@ func (h *WarehouseHandler) RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/outbounds", h.createOutbound)
 	router.GET("/outbounds/:id", h.getOutbound)
 	router.POST("/outbounds/:id/ship", h.confirmShip)
+	router.POST("/outbounds/:id/abnormal", h.markAbnormal)
 	router.GET("/pick-tasks", h.listPickTasks)
 	router.POST("/pick/scan", h.pickScan)
 	router.POST("/check/scan", h.checkScan)
@@ -43,6 +44,12 @@ func (h *WarehouseHandler) RegisterRoutes(router *gin.RouterGroup) {
 	router.POST("/weigh", h.weigh)
 	router.GET("/locations", h.listLocations)
 	router.POST("/inbound/received", h.inboundReceived)
+	// 波次管理
+	router.POST("/waves", h.createWave)
+	router.GET("/waves", h.listWaves)
+	router.GET("/waves/:id", h.getWave)
+	router.POST("/waves/:id/start", h.startWave)
+	router.POST("/waves/:id/complete", h.completeWave)
 }
 
 func (h *WarehouseHandler) listOutbounds(c *gin.Context) {
@@ -138,8 +145,9 @@ func (h *WarehouseHandler) listPickTasks(c *gin.Context) {
 func (h *WarehouseHandler) pickScan(c *gin.Context) {
 	if h.fallbackMode { c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通"}); return }
 	var req struct {
-		TaskID string `json:"task_id" binding:"required"`
-		Qty    int    `json:"quantity" binding:"required"`
+		TaskID         string `json:"task_id" binding:"required"`
+		Qty            int    `json:"quantity" binding:"required"`
+		IdempotencyKey string `json:"idempotency_key"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
@@ -155,15 +163,16 @@ func (h *WarehouseHandler) pickScan(c *gin.Context) {
 func (h *WarehouseHandler) checkScan(c *gin.Context) {
 	if h.fallbackMode { c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通"}); return }
 	var req struct {
-		OutboundID string `json:"outbound_id" binding:"required"`
-		SKUID      string `json:"sku_id"`
-		Qty        int    `json:"quantity" binding:"required"`
+		OutboundID     string `json:"outbound_id" binding:"required"`
+		SKUID          string `json:"sku_id" binding:"required"`
+		Qty            int    `json:"quantity" binding:"required"`
+		IdempotencyKey string `json:"idempotency_key"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
-	if err := h.appService.UpdateOutboundStatus(c.Request.Context(), req.OutboundID, string(domain.OutboundChecked)); err != nil {
+	if err := h.appService.CheckScan(c.Request.Context(), req.OutboundID, req.SKUID, req.Qty); err != nil {
 		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "复核失败: "+err.Error())
 		return
 	}
@@ -173,31 +182,34 @@ func (h *WarehouseHandler) checkScan(c *gin.Context) {
 func (h *WarehouseHandler) createPackage(c *gin.Context) {
 	if h.fallbackMode { c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通"}); return }
 	var req struct {
-		OutboundID string  `json:"outbound_id" binding:"required"`
-		Weight     float64 `json:"weight"`
+		OutboundID     string  `json:"outbound_id" binding:"required"`
+		Weight         float64 `json:"weight"`
+		IdempotencyKey string  `json:"idempotency_key"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
-	if err := h.appService.UpdateOutboundStatus(c.Request.Context(), req.OutboundID, string(domain.OutboundPacked)); err != nil {
+	pkg, err := h.appService.Pack(c.Request.Context(), req.OutboundID, req.Weight)
+	if err != nil {
 		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "打包失败: "+err.Error())
 		return
 	}
-	response.Success(c, gin.H{"packed": true})
+	response.Success(c, gin.H{"packed": true, "package_id": pkg.ID, "weight": pkg.Weight})
 }
 
 func (h *WarehouseHandler) weigh(c *gin.Context) {
 	if h.fallbackMode { c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通"}); return }
 	var req struct {
-		OutboundID string  `json:"outbound_id" binding:"required"`
-		Weight     float64 `json:"weight" binding:"required"`
+		OutboundID     string  `json:"outbound_id" binding:"required"`
+		Weight         float64 `json:"weight" binding:"required"`
+		IdempotencyKey string  `json:"idempotency_key"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
 		return
 	}
-	if err := h.appService.UpdateOutboundStatus(c.Request.Context(), req.OutboundID, string(domain.OutboundWeighed)); err != nil {
+	if err := h.appService.Weigh(c.Request.Context(), req.OutboundID, req.Weight); err != nil {
 		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "称重失败: "+err.Error())
 		return
 	}
@@ -213,6 +225,86 @@ func (h *WarehouseHandler) listLocations(c *gin.Context) {
 		return
 	}
 	response.Success(c, whs)
+}
+
+// ── Wave 波次管理 ──────────────────────────────────────
+
+func (h *WarehouseHandler) createWave(c *gin.Context) {
+	if h.fallbackMode { c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通"}); return }
+	var req struct {
+		WarehouseID  string   `json:"warehouse_id" binding:"required"`
+		Name         string   `json:"name" binding:"required"`
+		OutboundIDs  []string `json:"outbound_ids" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
+		return
+	}
+	wave, err := h.appService.CreateWave(c.Request.Context(), req.WarehouseID, req.Name, req.OutboundIDs)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "创建波次失败: "+err.Error())
+		return
+	}
+	response.Success(c, wave)
+}
+
+func (h *WarehouseHandler) getWave(c *gin.Context) {
+	if h.fallbackMode { response.Error(c, http.StatusNotFound, sharedErrors.CodeInvalidParameter, "波次不存在"); return }
+	wave, err := h.appService.GetWave(c.Request.Context(), c.Param("id"))
+	if err != nil {
+		response.Error(c, http.StatusNotFound, sharedErrors.CodeInvalidParameter, "波次不存在")
+		return
+	}
+	response.Success(c, wave)
+}
+
+func (h *WarehouseHandler) listWaves(c *gin.Context) {
+	if h.fallbackMode { response.Success(c, []interface{}{}); return }
+	warehouseID := c.Query("warehouse_id")
+	if warehouseID == "" {
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, "缺少 warehouse_id")
+		return
+	}
+	waves, err := h.appService.ListWaves(c.Request.Context(), warehouseID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "查询波次失败: "+err.Error())
+		return
+	}
+	response.Success(c, waves)
+}
+
+func (h *WarehouseHandler) startWave(c *gin.Context) {
+	if h.fallbackMode { c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通"}); return }
+	if err := h.appService.StartWave(c.Request.Context(), c.Param("id")); err != nil {
+		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "开始波次失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"started": true})
+}
+
+func (h *WarehouseHandler) completeWave(c *gin.Context) {
+	if h.fallbackMode { c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通"}); return }
+	if err := h.appService.CompleteWave(c.Request.Context(), c.Param("id")); err != nil {
+		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "完成波次失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"completed": true})
+}
+
+func (h *WarehouseHandler) markAbnormal(c *gin.Context) {
+	if h.fallbackMode { c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通"}); return }
+	var req struct {
+		Reason string `json:"reason" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.Error(c, http.StatusBadRequest, sharedErrors.CodeInvalidParameter, sharedErrors.CodeInvalidParameter.Message())
+		return
+	}
+	if err := h.appService.MarkOutboundAbnormal(c.Request.Context(), c.Param("id"), req.Reason); err != nil {
+		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "异常上报失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"abnormal": true})
 }
 
 func (h *WarehouseHandler) inboundReceived(c *gin.Context) {

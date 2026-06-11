@@ -86,6 +86,58 @@ func (r *FinanceRepository) ListProfitReports(ctx context.Context, tenantID stri
 	return reports, total, nil
 }
 
+// ── 写操作 ──────────────────────────────────────────────
+
+func (r *FinanceRepository) CreateArApRecord(ctx context.Context, record *domain.ArApRecord) error {
+	return r.db.WithContext(ctx).Create(&ArApRecordModel{
+		ID: record.ID, TenantID: record.TenantID, Type: string(record.Type),
+		OrderID: record.OrderID, Amount: record.Amount, Currency: record.Currency,
+		ExchangeRate: record.ExchangeRate, AmountCNY: record.AmountCNY, Status: record.Status, CreatedAt: record.CreatedAt,
+	}).Error
+}
+
+func (r *FinanceRepository) CreateCostRecord(ctx context.Context, record *domain.CostRecord) error {
+	return r.db.WithContext(ctx).Create(&CostRecordModel{
+		ID: record.ID, TenantID: record.TenantID, OrderID: record.OrderID, SKUID: record.SKUID,
+		CostType: record.CostType, Amount: record.Amount, Currency: record.Currency, AmountCNY: record.AmountCNY, CreatedAt: record.CreatedAt,
+	}).Error
+}
+
+func (r *FinanceRepository) CreateProfitReport(ctx context.Context, report *domain.ProfitReport) error {
+	return r.db.WithContext(ctx).Create(&ProfitReportModel{
+		ID: report.ID, TenantID: report.TenantID, OrderID: report.OrderID, OrderNo: report.OrderNo,
+		SKUID: report.SKUID, SKUCode: report.SKUCode, SaleAmount: report.SaleAmount,
+		PurchaseCost: report.PurchaseCost, ShippingCost: report.ShippingCost,
+		CommissionCost: report.CommissionCost, OtherCost: report.OtherCost,
+		TotalCost: report.TotalCost, GrossProfit: report.GrossProfit, ProfitMargin: report.ProfitMargin,
+		Currency: report.Currency, CreatedAt: report.CreatedAt,
+	}).Error
+}
+
+func (r *FinanceRepository) CreateJournal(ctx context.Context, journal *domain.FinanceJournal) error {
+	return r.db.WithContext(ctx).Create(&FinanceJournalModel{
+		ID: journal.ID, TenantID: journal.TenantID, OrderID: journal.OrderID,
+		ChangeType: journal.ChangeType, Amount: journal.Amount,
+		BeforeAmount: journal.BeforeAmount, AfterAmount: journal.AfterAmount,
+		Currency: journal.Currency, IdempotencyKey: journal.IdempotencyKey, CreatedAt: journal.CreatedAt,
+	}).Error
+}
+
+func (r *FinanceRepository) CreateExchangeRate(ctx context.Context, rate *domain.ExchangeRate) error {
+	return r.db.WithContext(ctx).Create(&ExchangeRateModel{
+		ID: rate.ID, TenantID: rate.TenantID, FromCurrency: rate.FromCurrency,
+		ToCurrency: rate.ToCurrency, Rate: rate.Rate, Source: rate.Source, CreatedAt: rate.CreatedAt,
+	}).Error
+}
+
+func (r *FinanceRepository) FindExchangeRate(ctx context.Context, tenantID, from, to string) (*domain.ExchangeRate, error) {
+	var m ExchangeRateModel
+	err := r.db.WithContext(ctx).Where("tenant_id = ? AND from_currency = ? AND to_currency = ?", tenantID, from, to).
+		Order("created_at DESC").First(&m).Error
+	if err != nil { return nil, err }
+	return &domain.ExchangeRate{ID: m.ID, TenantID: m.TenantID, FromCurrency: m.FromCurrency, ToCurrency: m.ToCurrency, Rate: m.Rate, Source: m.Source, CreatedAt: m.CreatedAt}, nil
+}
+
 func (r *FinanceRepository) ListJournals(ctx context.Context, tenantID string, offset, limit int) ([]*domain.FinanceJournal, int64, error) {
 	var total int64
 	query := r.db.WithContext(ctx).Model(&FinanceJournalModel{}).Where(whereTenantID, tenantID)
