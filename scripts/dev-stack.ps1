@@ -1,6 +1,6 @@
-# ERP-Go 本地开发栈（PowerShell）
+# ERP-Go 本地开发栈（PowerShell�?
 # 用法:
-#   .\scripts\dev-stack.ps1 infra          # 仅启动 Docker 中间件 + 迁移
+#   .\scripts\dev-stack.ps1 infra          # 仅启�?Docker 中间�?+ 迁移
 #   .\scripts\dev-stack.ps1 services       # 启动核心微服务（需 infra 已就绪）
 #   .\scripts\dev-stack.ps1 all            # infra + services
 
@@ -25,12 +25,12 @@ $env:INVENTORY_SERVICE_URL = "http://localhost:8086"
 $env:WAREHOUSE_SERVICE_URL = "http://localhost:8087"
 
 function Start-Infra {
-    Write-Host "==> 启动 Docker 中间件" -ForegroundColor Cyan
+    Write-Output "==> 启动 Docker 中间�? -ForegroundColor Cyan
     Push-Location (Join-Path $RepoRoot "docker/compose")
     docker compose -f docker-compose.dev.yml up -d postgres rabbitmq redis
     Pop-Location
 
-    Write-Host "==> 等待 PostgreSQL 就绪..." -ForegroundColor Cyan
+    Write-Output "==> 等待 PostgreSQL 就绪..." -ForegroundColor Cyan
     $ready = $false
     for ($i = 0; $i -lt 30; $i++) {
         docker exec erp-postgres pg_isready -U erp -d erp_go 2>$null
@@ -38,10 +38,10 @@ function Start-Infra {
         Start-Sleep -Seconds 2
     }
     if (-not $ready) {
-        throw "PostgreSQL 未在预期时间内就绪"
+        throw "PostgreSQL 未在预期时间内就�?
     }
 
-    Write-Host "==> 执行数据库迁移" -ForegroundColor Cyan
+    Write-Output "==> 执行数据库迁�? -ForegroundColor Cyan
     $env:DATABASE_URL = "postgres://$env:DATABASE_USER`:$env:DATABASE_PASSWORD@$env:DATABASE_HOST`:$env:DATABASE_PORT/$env:DATABASE_DBNAME`?sslmode=disable"
     & (Join-Path $RepoRoot "scripts/migrate.ps1")
 }
@@ -79,7 +79,7 @@ function Start-Services {
     )
 
     foreach ($svc in $services) {
-        Write-Host "==> 启动 $($svc.Name) (:$($svc.Port))" -ForegroundColor Cyan
+        Write-Output "==> 启动 $($svc.Name) (:$($svc.Port))" -ForegroundColor Cyan
         $svcEnv = Merge-ServiceEnv $baseEnv @{ SERVER_PORT = "$($svc.Port)" }
         if ($svc.Extra) {
             $svcEnv = Merge-ServiceEnv $svcEnv $svc.Extra
@@ -88,11 +88,11 @@ function Start-Services {
         Start-Sleep -Seconds 1
     }
 
-    Write-Host ""
-    Write-Host "核心服务已在后台启动（无窗口，日志见 .cache/logs/）。" -ForegroundColor Green
-    Write-Host "Gateway:    http://localhost:8080/health"
-    Write-Host "IAM 登录:   POST http://localhost:8080/api/v1/iam/login  (admin/admin123, tenant=default)"
-    Write-Host "PDA 前端:   npm run dev:pda  (端口 5174，代理 /api -> :8080)"
+    Write-Output ""
+    Write-Output "核心服务已在后台启动（无窗口，日志见 .cache/logs/）�? -ForegroundColor Green
+    Write-Output "Gateway:    http://localhost:8080/health"
+    Write-Output "IAM 登录:   POST http://localhost:8080/api/v1/iam/login  (admin/admin123, tenant=default)"
+    Write-Output "PDA 前端:   npm run dev:pda  (端口 5174，代�?/api -> :8080)"
 }
 
 switch ($Target) {

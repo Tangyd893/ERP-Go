@@ -6,8 +6,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const bcryptCost = 10
+
 func main() {
-	h, err := bcrypt.GenerateFromPassword([]byte("admin123"), 10)
+	h, err := bcrypt.GenerateFromPassword([]byte("admin123"), bcryptCost)
 	if err != nil {
 		panic(err)
 	}
