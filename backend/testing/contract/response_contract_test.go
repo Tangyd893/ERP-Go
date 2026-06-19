@@ -67,7 +67,7 @@ func TestResponseFormat(t *testing.T) {
 }
 
 func TestEventPayloadSnapshot(t *testing.T) {
-	events_ := map[string]interface{}{
+	eventSnapshots := map[string]interface{}{
 		events.EventOrderApproved: map[string]interface{}{
 			"order_id": "order-1", "tenant_id": "default", "store_id": "st-1",
 			"order_no": "SO-001", "warehouse_id": "wh-001",
@@ -91,7 +91,7 @@ func TestEventPayloadSnapshot(t *testing.T) {
 		},
 	}
 
-	for eventType, data := range events_ {
+	for eventType, data := range eventSnapshots {
 		t.Run(eventType, func(t *testing.T) {
 			payload, err := outbox.NewEventPayload(eventType, data)
 			if err != nil {

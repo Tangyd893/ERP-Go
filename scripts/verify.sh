@@ -21,8 +21,9 @@ export GOMODCACHE="$CACHE_DIR/go-mod"
 mkdir -p "$GOCACHE" "$GOMODCACHE"
 
 step() {
+  local step_label="$1"
   echo ""
-  echo "==> $1"
+  echo "==> $step_label"
 }
 
 echo "ERP-Go verify"

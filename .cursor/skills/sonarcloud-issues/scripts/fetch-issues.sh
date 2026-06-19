@@ -40,7 +40,7 @@ BASE="https://sonarcloud.io/api/issues/search"
 AUTH=()
 [[ -n "${SONAR_TOKEN:-}" ]] && AUTH=(-H "Authorization: Bearer ${SONAR_TOKEN}")
 
-enc() { python3 -c "import urllib.parse; print(urllib.parse.quote('''$1''', safe=''))"; }
+enc() { local val="$1"; python3 -c "import urllib.parse; print(urllib.parse.quote('''$val''', safe=''))"; }
 
 QS="componentKeys=$(enc "$PROJECT_KEY")"
 QS+="&issueStatuses=$(enc "$ISSUE_STATUSES")"

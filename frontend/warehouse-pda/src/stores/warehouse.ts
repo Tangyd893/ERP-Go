@@ -82,7 +82,7 @@ export const useWarehouseStore = defineStore("warehouse-pda", () => {
   const online = ref(navigator.onLine);
 
   // Track online/offline
-  if (typeof globalThis.window !== "undefined") {
+  if (globalThis.window !== undefined) {
     globalThis.window.addEventListener("online", () => { online.value = true; });
     globalThis.window.addEventListener("offline", () => { online.value = false; });
   }

@@ -94,8 +94,6 @@ export function useDashboard() {
 // 单例 store
 let instance: ReturnType<typeof useDashboard> | null = null;
 export function useDashboardStore() {
-  if (!instance) {
-    instance = useDashboard();
-  }
+  instance ??= useDashboard();
   return instance;
 }
