@@ -9,6 +9,7 @@ import (
 )
 
 const whereStatus = "status = ?"
+const whereID = "id = ?"
 
 // OutboxMessageModel Outbox 消息 GORM 模型
 type OutboxMessageModel struct {
@@ -62,7 +63,7 @@ func (s *PGOutboxStore) Save(ctx context.Context, msg *OutboxMessage) error {
 func (s *PGOutboxStore) FetchPending(ctx context.Context, limit int) ([]*OutboxMessage, error) {
 	var models []*OutboxMessageModel
 	err := s.db.WithContext(ctx).
-		Where("status = ?", string(StatusPending)).
+		Where(whereStatus, string(StatusPending)).
 		Order("created_at ASC").
 		Limit(limit).
 		Find(&models).Error
@@ -89,34 +90,34 @@ func (s *PGOutboxStore) FetchPending(ctx context.Context, limit int) ([]*OutboxM
 
 func (s *PGOutboxStore) MarkPublished(ctx context.Context, id int64) error {
 	now := time.Now()
-	return s.db.WithContext(ctx).Model(&OutboxMessageModel{}).Where("id = ?", id).Updates(map[string]interface{}{
+	return s.db.WithContext(ctx).Model(&OutboxMessageModel{}).Where(whereID, id).Updates(map[string]interface{}{
 		"status":       string(StatusPublished),
 		"published_at": &now,
 	}).Error
 }
 
 func (s *PGOutboxStore) MarkFailed(ctx context.Context, id int64, err error) error {
-	return s.db.WithContext(ctx).Model(&OutboxMessageModel{}).Where("id = ?", id).Updates(map[string]interface{}{
+	return s.db.WithContext(ctx).Model(&OutboxMessageModel{}).Where(whereID, id).Updates(map[string]interface{}{
 		"status":      string(StatusFailed),
 		"retry_count": gorm.Expr("retry_count + 1"),
 	}).Error
 }
 
 func (s *PGOutboxStore) Retry(ctx context.Context, id int64) error {
-	return s.db.WithContext(ctx).Model(&OutboxMessageModel{}).Where("id = ?", id).Update("status", string(StatusPending)).Error
+	return s.db.WithContext(ctx).Model(&OutboxMessageModel{}).Where(whereID, id).Update("status", string(StatusPending)).Error
 }
 
 func (s *PGOutboxStore) FetchFailed(ctx context.Context, offset, limit int) ([]*OutboxMessage, int64, error) {
 	var total int64
 	if err := s.db.WithContext(ctx).Model(&OutboxMessageModel{}).
-		Where("status = ?", string(StatusFailed)).
+		Where(whereStatus, string(StatusFailed)).
 		Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	var models []*OutboxMessageModel
 	err := s.db.WithContext(ctx).
-		Where("status = ?", string(StatusFailed)).
+		Where(whereStatus, string(StatusFailed)).
 		Order("created_at DESC").
 		Offset(offset).
 		Limit(limit).

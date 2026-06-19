@@ -50,17 +50,32 @@ type LoginResult struct {
 func (s *AuthService) Login(ctx context.Context, tenantID, username, password, ip, userAgent string) (*LoginResult, error) {
 	user, err := s.userRepo.FindWithRoles(ctx, tenantID, username)
 	if err != nil {
-		s.writeAudit(ctx, tenantID, "", username, domain.AuditLogin, "user", "", "登录失败", ip, userAgent, "fail", "用户不存在")
+		s.writeAudit(ctx, &domain.AuditLog{
+		TenantID: tenantID, Username: username,
+		Action: domain.AuditLogin, ResourceType: "user",
+		Detail: "登录失败", IP: ip, UserAgent: userAgent,
+		Result: "fail", ResultDetail: "用户不存在",
+	})
 		return nil, errors.NewBusinessError(errors.CodeLoginFailed, "用户名或密码错误")
 	}
 
 	if !user.IsActive() {
-		s.writeAudit(ctx, tenantID, user.ID, username, domain.AuditLogin, "user", user.ID, "登录失败", ip, userAgent, "fail", errUserDisabled)
+		s.writeAudit(ctx, &domain.AuditLog{
+		TenantID: tenantID, UserID: user.ID, Username: username,
+		Action: domain.AuditLogin, ResourceType: "user", ResourceID: user.ID,
+		Detail: "登录失败", IP: ip, UserAgent: userAgent,
+		Result: "fail", ResultDetail: errUserDisabled,
+	})
 		return nil, errors.NewBusinessError(errors.CodeUserDisabled, errUserDisabled)
 	}
 
 	if !s.passHasher.Verify(password, user.PasswordHash) {
-		s.writeAudit(ctx, tenantID, user.ID, username, domain.AuditLogin, "user", user.ID, "登录失败", ip, userAgent, "fail", "密码错误")
+		s.writeAudit(ctx, &domain.AuditLog{
+		TenantID: tenantID, UserID: user.ID, Username: username,
+		Action: domain.AuditLogin, ResourceType: "user", ResourceID: user.ID,
+		Detail: "登录失败", IP: ip, UserAgent: userAgent,
+		Result: "fail", ResultDetail: "密码错误",
+	})
 		return nil, errors.NewBusinessError(errors.CodeLoginFailed, "用户名或密码错误")
 	}
 
@@ -77,7 +92,12 @@ func (s *AuthService) Login(ctx context.Context, tenantID, username, password, i
 	user.RecordLogin()
 	_ = s.userRepo.Update(ctx, user)
 
-	s.writeAudit(ctx, tenantID, user.ID, username, domain.AuditLogin, "user", user.ID, "登录成功", ip, userAgent, "success", "")
+	s.writeAudit(ctx, &domain.AuditLog{
+	TenantID: tenantID, UserID: user.ID, Username: username,
+	Action: domain.AuditLogin, ResourceType: "user", ResourceID: user.ID,
+	Detail: "登录成功", IP: ip, UserAgent: userAgent,
+	Result: "success",
+})
 
 	return &LoginResult{
 		AccessToken:  accessToken,
@@ -125,7 +145,12 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*L
 
 // Logout 登出
 func (s *AuthService) Logout(ctx context.Context, tenantID, userID, username, ip, userAgent string) error {
-	s.writeAudit(ctx, tenantID, userID, username, domain.AuditLogout, "user", userID, "登出", ip, userAgent, "success", "")
+	s.writeAudit(ctx, &domain.AuditLog{
+	TenantID: tenantID, UserID: userID, Username: username,
+	Action: domain.AuditLogout, ResourceType: "user", ResourceID: userID,
+	Detail: "登出", IP: ip, UserAgent: userAgent,
+	Result: "success",
+})
 	return nil
 }
 
@@ -152,21 +177,8 @@ func (s *AuthService) GetUserInfo(ctx context.Context, tenantID, userID string) 
 	return user, nil
 }
 
-func (s *AuthService) writeAudit(ctx context.Context, tenantID, userID, username string, action domain.AuditAction, resourceType, resourceID, detail, ip, userAgent, result, resultDetail string) {
-	log := &domain.AuditLog{
-		ID:           uuid.New().String(),
-		TenantID:     tenantID,
-		UserID:       userID,
-		Username:     username,
-		Action:       action,
-		ResourceType: resourceType,
-		ResourceID:   resourceID,
-		Detail:       detail,
-		IP:           ip,
-		UserAgent:    userAgent,
-		Result:       result,
-		ResultDetail: resultDetail,
-		CreatedAt:    time.Now(),
-	}
+func (s *AuthService) writeAudit(ctx context.Context, log *domain.AuditLog) {
+	log.ID = uuid.New().String()
+	log.CreatedAt = time.Now()
 	_ = s.auditRepo.Write(ctx, log)
 }

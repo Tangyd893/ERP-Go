@@ -29,9 +29,9 @@ func TestFinanceFullFlow(t *testing.T) {
 	}
 
 	// 4. 记录成本
-	purchase := NewCostRecord("C-001", "default", "order-001", "sku-001", "purchase", 30.0, "USD", rate)
-	shipping := NewCostRecord("C-002", "default", "order-001", "sku-001", "shipping", 5.0, "USD", rate)
-	commission := NewCostRecord("C-003", "default", "order-001", "sku-001", "commission", 8.0, "USD", rate)
+	purchase := NewCostRecord("C-001", CostRecordParams{TenantID: "default", OrderID: "order-001", SKUID: "sku-001", CostType: "purchase", Amount: 30.0, Currency: "USD", Rate: rate})
+	shipping := NewCostRecord("C-002", CostRecordParams{TenantID: "default", OrderID: "order-001", SKUID: "sku-001", CostType: "shipping", Amount: 5.0, Currency: "USD", Rate: rate})
+	commission := NewCostRecord("C-003", CostRecordParams{TenantID: "default", OrderID: "order-001", SKUID: "sku-001", CostType: "commission", Amount: 8.0, Currency: "USD", Rate: rate})
 
 	if purchase.AmountCNY != 217.5 {
 		t.Errorf("采购成本 CNY 应为 217.5，实际 %.2f", purchase.AmountCNY)
@@ -60,7 +60,10 @@ func TestFinanceFullFlow(t *testing.T) {
 	}
 
 	// 6. 财务流水
-	j := NewJournal("J-001", "default", "order-001", "cost_record", 36.25, 0, 253.75, "USD", "idem-001")
+	j := NewJournal("J-001", JournalParams{
+		TenantID: "default", OrderID: "order-001", ChangeType: "cost_record",
+		Amount: 36.25, Before: 0, After: 253.75, Currency: "USD", IdempotencyKey: "idem-001",
+	})
 	if j.ChangeType != "cost_record" {
 		t.Error("流水类型应为 cost_record")
 	}

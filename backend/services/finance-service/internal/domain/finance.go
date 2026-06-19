@@ -2,6 +2,32 @@ package domain
 
 import "time"
 
+// ── 参数结构体（降低函数签名复杂度）─────────────────────
+
+// SettlementParams 结算单导入参数
+type SettlementParams struct {
+	TenantID, StoreID, Platform, Period, Currency string
+	Sales, Refunds, Commission, Fba, Other        float64
+}
+
+// ProfitParams 利润报表生成参数
+type ProfitParams struct {
+	TenantID, OrderID, OrderNo, SKUID, SKUCode, Currency string
+	SaleAmount                                           float64
+}
+
+// CostRecordParams 成本记录参数
+type CostRecordParams struct {
+	TenantID, OrderID, SKUID, CostType, Currency string
+	Amount, Rate                                 float64
+}
+
+// JournalParams 财务流水参数
+type JournalParams struct {
+	TenantID, OrderID, ChangeType, Currency, IdempotencyKey string
+	Amount, Before, After                                   float64
+}
+
 // 应收应付类型
 type ArApType string
 
@@ -107,20 +133,20 @@ func NewPayable(id, tenantID, orderID string, amount float64, currency string, r
 }
 
 // NewCostRecord 创建成本记录
-func NewCostRecord(id, tenantID, orderID, skuID, costType string, amount float64, currency string, rate float64) *CostRecord {
+func NewCostRecord(id string, p CostRecordParams) *CostRecord {
 	return &CostRecord{
-		ID: id, TenantID: tenantID, OrderID: orderID, SKUID: skuID,
-		CostType: costType, Amount: amount, Currency: currency,
-		AmountCNY: amount * rate, CreatedAt: time.Now(),
+		ID: id, TenantID: p.TenantID, OrderID: p.OrderID, SKUID: p.SKUID,
+		CostType: p.CostType, Amount: p.Amount, Currency: p.Currency,
+		AmountCNY: p.Amount * p.Rate, CreatedAt: time.Now(),
 	}
 }
 
 // NewJournal 创建财务流水
-func NewJournal(id, tenantID, orderID, changeType string, amount, before, after float64, currency, idempotencyKey string) *FinanceJournal {
+func NewJournal(id string, p JournalParams) *FinanceJournal {
 	return &FinanceJournal{
-		ID: id, TenantID: tenantID, OrderID: orderID, ChangeType: changeType,
-		Amount: amount, BeforeAmount: before, AfterAmount: after,
-		Currency: currency, IdempotencyKey: idempotencyKey, CreatedAt: time.Now(),
+		ID: id, TenantID: p.TenantID, OrderID: p.OrderID, ChangeType: p.ChangeType,
+		Amount: p.Amount, BeforeAmount: p.Before, AfterAmount: p.After,
+		Currency: p.Currency, IdempotencyKey: p.IdempotencyKey, CreatedAt: time.Now(),
 	}
 }
 

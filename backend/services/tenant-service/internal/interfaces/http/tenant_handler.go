@@ -13,6 +13,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const fallbackMsg = "接口已联通，等待数据库迁移完成"
+
 // TenantHandler 租户 HTTP 处理器
 type TenantHandler struct {
 	appService  *app.TenantAppService
@@ -82,7 +84,7 @@ func (h *TenantHandler) getTenant(c *gin.Context) {
 
 func (h *TenantHandler) createTenant(c *gin.Context) {
 	if h.fallbackMode {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通，等待数据库迁移完成"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "message": fallbackMsg})
 		return
 	}
 
@@ -120,7 +122,7 @@ func (h *TenantHandler) createTenant(c *gin.Context) {
 
 func (h *TenantHandler) updateTenant(c *gin.Context) {
 	if h.fallbackMode {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通，等待数据库迁移完成"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "message": fallbackMsg})
 		return
 	}
 
@@ -194,7 +196,7 @@ func (h *TenantHandler) listOrganizations(c *gin.Context) {
 
 func (h *TenantHandler) createOrganization(c *gin.Context) {
 	if h.fallbackMode {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通，等待数据库迁移完成"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "message": fallbackMsg})
 		return
 	}
 
@@ -245,7 +247,7 @@ func (h *TenantHandler) listDepartments(c *gin.Context) {
 
 func (h *TenantHandler) createDepartment(c *gin.Context) {
 	if h.fallbackMode {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通，等待数据库迁移完成"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "message": fallbackMsg})
 		return
 	}
 
@@ -300,7 +302,7 @@ func (h *TenantHandler) listPositions(c *gin.Context) {
 
 func (h *TenantHandler) createPosition(c *gin.Context) {
 	if h.fallbackMode {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通，等待数据库迁移完成"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "message": fallbackMsg})
 		return
 	}
 

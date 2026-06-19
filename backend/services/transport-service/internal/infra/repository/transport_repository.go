@@ -9,6 +9,7 @@ import (
 
 const (
 	whereTenantID = "tenant_id = ?"
+	whereID       = "id = ?"
 	orderByDesc   = "created_at DESC"
 )
 
@@ -49,7 +50,7 @@ func (r *TransportRepository) ListShipments(ctx context.Context, tenantID string
 
 func (r *TransportRepository) FindShipment(ctx context.Context, id string) (*domain.Shipment, error) {
 	var m ShipmentModel
-	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&m).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where(whereID, id).First(&m).Error; err != nil {
 		return nil, err
 	}
 	return &domain.Shipment{
@@ -63,7 +64,7 @@ func (r *TransportRepository) FindShipment(ctx context.Context, id string) (*dom
 func (r *TransportRepository) UpdateShipmentStatus(ctx context.Context, id, status string, trackingNo string) error {
 	updates := map[string]interface{}{"status": status}
 	if trackingNo != "" { updates["tracking_no"] = trackingNo }
-	return r.db.WithContext(ctx).Model(&ShipmentModel{}).Where("id = ?", id).Updates(updates).Error
+	return r.db.WithContext(ctx).Model(&ShipmentModel{}).Where(whereID, id).Updates(updates).Error
 }
 
 // ListShippingRules 按租户查询物流规则（按优先级升序）
@@ -108,7 +109,7 @@ func (r *TransportRepository) ListCarrierServices(ctx context.Context, carrierID
 // FindCarrierService 按 ID 查询物流产品
 func (r *TransportRepository) FindCarrierService(ctx context.Context, id string) (*domain.CarrierService, error) {
 	var m CarrierServiceModel
-	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&m).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where(whereID, id).First(&m).Error; err != nil {
 		return nil, err
 	}
 	return &domain.CarrierService{

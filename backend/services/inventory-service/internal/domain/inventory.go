@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+const journalIDFormat = "jrnl-%s-%s"
+
 // InventoryBalance 库存余额聚合根
 type InventoryBalance struct {
 	ID             string    `json:"id"`
@@ -158,7 +160,7 @@ func (s *InventoryService) LockInventory(balance *InventoryBalance, orderID stri
 		locks = append(locks, lock)
 
 		journal := &InventoryJournal{
-			ID:            fmt.Sprintf("jrnl-%s-%s", lockKeyPrefix, skuID),
+			ID:            fmt.Sprintf(journalIDFormat, lockKeyPrefix, skuID),
 			WarehouseID:   warehouseID,
 			SKUID:         skuID,
 			OrderID:       orderID,
@@ -205,7 +207,7 @@ func (s *InventoryService) ReleaseInventory(balance *InventoryBalance, locks []*
 		lock.UpdatedAt = time.Now()
 
 		journal := &InventoryJournal{
-			ID:            fmt.Sprintf("jrnl-%s-%s", releaseKeyPrefix, lock.SKUID),
+			ID:            fmt.Sprintf(journalIDFormat, releaseKeyPrefix, lock.SKUID),
 			WarehouseID:   lock.WarehouseID,
 			SKUID:         lock.SKUID,
 			OrderID:       lock.OrderID,
@@ -251,7 +253,7 @@ func (s *InventoryService) DeductInventory(balance *InventoryBalance, locks []*I
 		lock.UpdatedAt = time.Now()
 
 		journal := &InventoryJournal{
-			ID:            fmt.Sprintf("jrnl-%s-%s", deductKeyPrefix, lock.SKUID),
+			ID:            fmt.Sprintf(journalIDFormat, deductKeyPrefix, lock.SKUID),
 			WarehouseID:   lock.WarehouseID,
 			SKUID:         lock.SKUID,
 			OrderID:       lock.OrderID,

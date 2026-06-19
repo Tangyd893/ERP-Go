@@ -93,27 +93,12 @@ func (s *TransportAppService) MatchCarrier(ctx context.Context, tenantID string,
 		return nil, fmt.Errorf("查询物流规则失败: %w", err)
 	}
 	for _, rule := range rules {
-		// 重量范围匹配（0 表示不限）
-		if rule.MinWeight > 0 && weight < rule.MinWeight {
+		if !matchesWeight(rule.MinWeight, rule.MaxWeight, weight) {
 			continue
 		}
-		if rule.MaxWeight > 0 && weight > rule.MaxWeight {
+		if !matchesCountry(rule.CountryCodes, country) {
 			continue
 		}
-		// 国家匹配（空列表表示不限）
-		if len(rule.CountryCodes) > 0 {
-			matched := false
-			for _, c := range rule.CountryCodes {
-				if strings.EqualFold(c, country) {
-					matched = true
-					break
-				}
-			}
-			if !matched {
-				continue
-			}
-		}
-		// 命中最高优先级规则
 		svc, err := s.repo.FindCarrierService(ctx, rule.CarrierServiceID)
 		if err != nil {
 			continue
@@ -125,6 +110,30 @@ func (s *TransportAppService) MatchCarrier(ctx context.Context, tenantID string,
 		}, nil
 	}
 	return nil, fmt.Errorf("未找到匹配的物流渠道（重量=%.0fg, 国家=%s）", weight, country)
+}
+
+// matchesWeight 检查重量是否在规则范围内（0 表示不限）
+func matchesWeight(minWeight, maxWeight, weight float64) bool {
+	if minWeight > 0 && weight < minWeight {
+		return false
+	}
+	if maxWeight > 0 && weight > maxWeight {
+		return false
+	}
+	return true
+}
+
+// matchesCountry 检查国家是否在规则允许列表中（空列表表示不限）
+func matchesCountry(countryCodes []string, country string) bool {
+	if len(countryCodes) == 0 {
+		return true
+	}
+	for _, c := range countryCodes {
+		if strings.EqualFold(c, country) {
+			return true
+		}
+	}
+	return false
 }
 
 // MatchResult 匹配结果

@@ -20,6 +20,9 @@ const (
 	errCreateBalance  = "创建库存记录失败"
 	errUpdateBalance  = "更新库存余额失败"
 	errSaveJournal    = "写入库存流水失败"
+	errCreateLock     = "创建锁定记录失败"
+	errLockNotFound   = "锁定记录不存在"
+	errUpdateLock     = "更新锁定记录失败"
 )
 
 // InventoryRepository GORM 实现的库存仓储
@@ -85,7 +88,7 @@ func (r *InventoryRepository) LockStock(ctx context.Context, lock *domain.Invent
 			Where(whereWarehouseSKU, lock.WarehouseID, lock.SKUID).
 			First(&balance).Error
 		if err != nil {
-			return fmt.Errorf("查询库存失败: %w", err)
+			return fmt.Errorf("%s: %w", errFindBalance, err)
 		}
 
 		if balance.Available() < lock.Quantity {
@@ -99,7 +102,7 @@ func (r *InventoryRepository) LockStock(ctx context.Context, lock *domain.Invent
 		balance.LockedQuantity += lock.Quantity
 		balance.Version++
 		if err := tx.Save(&balance).Error; err != nil {
-			return fmt.Errorf("更新库存余额失败: %w", err)
+			return fmt.Errorf("%s: %w", errUpdateBalance, err)
 		}
 
 		lockModel := &InventoryLockModel{
@@ -115,7 +118,7 @@ func (r *InventoryRepository) LockStock(ctx context.Context, lock *domain.Invent
 			CreatedAt:       lock.CreatedAt,
 		}
 		if err := tx.Create(lockModel).Error; err != nil {
-			return fmt.Errorf("创建锁定记录失败: %w", err)
+			return fmt.Errorf("%s: %w", errCreateLock, err)
 		}
 
 		journalModel := &InventoryJournalModel{
@@ -137,7 +140,7 @@ func (r *InventoryRepository) LockStock(ctx context.Context, lock *domain.Invent
 			CreatedAt:      journal.CreatedAt,
 		}
 		if err := tx.Create(journalModel).Error; err != nil {
-			return fmt.Errorf("写入库存流水失败: %w", err)
+			return fmt.Errorf("%s: %w", errSaveJournal, err)
 		}
 
 		return nil
@@ -149,7 +152,7 @@ func (r *InventoryRepository) ReleaseStock(ctx context.Context, lockKey string, 
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var lockModel InventoryLockModel
 		if err := tx.Where(whereLockKey, lockKey).First(&lockModel).Error; err != nil {
-			return fmt.Errorf("锁定记录不存在: %w", err)
+			return fmt.Errorf("%s: %w", errLockNotFound, err)
 		}
 
 		if lockModel.Status == "released" || lockModel.Status == "deducted" {
@@ -169,20 +172,20 @@ func (r *InventoryRepository) ReleaseStock(ctx context.Context, lockKey string, 
 			Where(whereWarehouseSKU, lockModel.WarehouseID, lockModel.SKUID).
 			First(&balance).Error
 		if err != nil {
-			return fmt.Errorf("查询库存失败: %w", err)
+			return fmt.Errorf("%s: %w", errFindBalance, err)
 		}
 
 		balance.LockedQuantity -= releaseQty
 		balance.Version++
 		if err := tx.Save(&balance).Error; err != nil {
-			return fmt.Errorf("更新库存余额失败: %w", err)
+			return fmt.Errorf("%s: %w", errUpdateBalance, err)
 		}
 
 		lockModel.ReleasedQty += releaseQty
 		lockModel.Status = "released"
 		lockModel.UpdatedAt = time.Now()
 		if err := tx.Save(&lockModel).Error; err != nil {
-			return fmt.Errorf("更新锁定记录失败: %w", err)
+			return fmt.Errorf("%s: %w", errUpdateLock, err)
 		}
 
 		return nil
@@ -194,7 +197,7 @@ func (r *InventoryRepository) DeductStock(ctx context.Context, lockKey string) e
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var lockModel InventoryLockModel
 		if err := tx.Where(whereLockKey, lockKey).First(&lockModel).Error; err != nil {
-			return fmt.Errorf("锁定记录不存在: %w", err)
+			return fmt.Errorf("%s: %w", errLockNotFound, err)
 		}
 
 		if lockModel.Status == "deducted" {
@@ -211,7 +214,7 @@ func (r *InventoryRepository) DeductStock(ctx context.Context, lockKey string) e
 			Where(whereWarehouseSKU, lockModel.WarehouseID, lockModel.SKUID).
 			First(&balance).Error
 		if err != nil {
-			return fmt.Errorf("查询库存失败: %w", err)
+			return fmt.Errorf("%s: %w", errFindBalance, err)
 		}
 
 		if balance.TotalQuantity < deductQty || balance.LockedQuantity < deductQty {
@@ -222,13 +225,13 @@ func (r *InventoryRepository) DeductStock(ctx context.Context, lockKey string) e
 		balance.LockedQuantity -= deductQty
 		balance.Version++
 		if err := tx.Save(&balance).Error; err != nil {
-			return fmt.Errorf("更新库存余额失败: %w", err)
+			return fmt.Errorf("%s: %w", errUpdateBalance, err)
 		}
 
 		lockModel.Status = "deducted"
 		lockModel.UpdatedAt = time.Now()
 		if err := tx.Save(&lockModel).Error; err != nil {
-			return fmt.Errorf("更新锁定记录失败: %w", err)
+			return fmt.Errorf("%s: %w", errUpdateLock, err)
 		}
 
 		return nil
@@ -310,10 +313,10 @@ func (r *InventoryRepository) IncreaseStock(ctx context.Context, journal *domain
 					TotalQuantity:  0,
 				}
 				if err := tx.Create(&balance).Error; err != nil {
-					return fmt.Errorf("创建库存记录失败: %w", err)
+					return fmt.Errorf("%s: %w", errCreateBalance, err)
 				}
 			} else {
-				return fmt.Errorf("查询库存失败: %w", err)
+				return fmt.Errorf("%s: %w", errFindBalance, err)
 			}
 		}
 
@@ -321,7 +324,7 @@ func (r *InventoryRepository) IncreaseStock(ctx context.Context, journal *domain
 		balance.TotalQuantity += journal.ChangeQty
 		balance.Version++
 		if err := tx.Save(&balance).Error; err != nil {
-			return fmt.Errorf("更新库存余额失败: %w", err)
+			return fmt.Errorf("%s: %w", errUpdateBalance, err)
 		}
 
 		journalModel := &InventoryJournalModel{

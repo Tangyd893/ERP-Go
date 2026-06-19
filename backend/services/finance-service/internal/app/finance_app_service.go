@@ -27,13 +27,13 @@ func (s *FinanceAppService) ListSettlementBills(ctx context.Context, tenantID st
 }
 
 // ImportSettlement 导入平台结算单（含佣金/退款/调整项匹配）
-func (s *FinanceAppService) ImportSettlement(ctx context.Context, tenantID, storeID, platform, period, currency string, sales, refunds, commission, fba, other float64) (*domain.SettlementBill, error) {
-	net := sales - refunds - commission - fba - other
+func (s *FinanceAppService) ImportSettlement(ctx context.Context, p domain.SettlementParams) (*domain.SettlementBill, error) {
+	net := p.Sales - p.Refunds - p.Commission - p.Fba - p.Other
 	bill := &domain.SettlementBill{
-		ID: fmt.Sprintf("STL%d", time.Now().UnixNano()), TenantID: tenantID,
-		StoreID: storeID, PlatformCode: platform, SettlementPeriod: period,
-		Currency: currency, TotalSales: sales, TotalRefunds: refunds,
-		Commission: commission, FbaFee: fba, OtherFee: other,
+		ID: fmt.Sprintf("STL%d", time.Now().UnixNano()), TenantID: p.TenantID,
+		StoreID: p.StoreID, PlatformCode: p.Platform, SettlementPeriod: p.Period,
+		Currency: p.Currency, TotalSales: p.Sales, TotalRefunds: p.Refunds,
+		Commission: p.Commission, FbaFee: p.Fba, OtherFee: p.Other,
 		NetAmount: net, Status: "imported", CreatedAt: time.Now(),
 	}
 	if err := s.repo.CreateSettlementBill(ctx, bill); err != nil {
@@ -75,7 +75,10 @@ func (s *FinanceAppService) ListCostRecords(ctx context.Context, tenantID string
 // RecordCost 记录成本（采购/物流/佣金等）
 func (s *FinanceAppService) RecordCost(ctx context.Context, tenantID, orderID, skuID, costType string, amount float64, currency string) (*domain.CostRecord, error) {
 	rate, _ := s.getExchangeRate(ctx, tenantID, currency, "CNY")
-	rec := domain.NewCostRecord(fmt.Sprintf("COST%d", time.Now().UnixNano()), tenantID, orderID, skuID, costType, amount, currency, rate)
+	rec := domain.NewCostRecord(fmt.Sprintf("COST%d", time.Now().UnixNano()), domain.CostRecordParams{
+		TenantID: tenantID, OrderID: orderID, SKUID: skuID,
+		CostType: costType, Amount: amount, Currency: currency, Rate: rate,
+	})
 	if err := s.repo.CreateCostRecord(ctx, rec); err != nil {
 		return nil, fmt.Errorf("记录成本失败: %w", err)
 	}
@@ -89,17 +92,17 @@ func (s *FinanceAppService) ListProfitReports(ctx context.Context, tenantID stri
 }
 
 // GenerateProfitReport 生成订单/SKU 利润报表
-func (s *FinanceAppService) GenerateProfitReport(ctx context.Context, tenantID, orderID, orderNo, skuID, skuCode string, saleAmount float64, currency string) (*domain.ProfitReport, error) {
-	rate, _ := s.getExchangeRate(ctx, tenantID, currency, "CNY")
+func (s *FinanceAppService) GenerateProfitReport(ctx context.Context, p domain.ProfitParams) (*domain.ProfitReport, error) {
+	rate, _ := s.getExchangeRate(ctx, p.TenantID, p.Currency, "CNY")
 	report := &domain.ProfitReport{
-		ID: fmt.Sprintf("PR%d", time.Now().UnixNano()), TenantID: tenantID,
-		OrderID: orderID, OrderNo: orderNo, SKUID: skuID, SKUCode: skuCode,
-		SaleAmount: saleAmount, Currency: currency, CreatedAt: time.Now(),
+		ID: fmt.Sprintf("PR%d", time.Now().UnixNano()), TenantID: p.TenantID,
+		OrderID: p.OrderID, OrderNo: p.OrderNo, SKUID: p.SKUID, SKUCode: p.SKUCode,
+		SaleAmount: p.SaleAmount, Currency: p.Currency, CreatedAt: time.Now(),
 	}
 	// 从已记录的成本中汇总
-	costs, _, _ := s.repo.ListCostRecords(ctx, tenantID, 0, 1000)
+	costs, _, _ := s.repo.ListCostRecords(ctx, p.TenantID, 0, 1000)
 	for _, c := range costs {
-		if c.OrderID == orderID && (c.SKUID == skuID || skuID == "") {
+		if c.OrderID == p.OrderID && (c.SKUID == p.SKUID || p.SKUID == "") {
 			switch c.CostType {
 			case "purchase": report.PurchaseCost += c.AmountCNY
 			case "shipping": report.ShippingCost += c.AmountCNY
@@ -109,7 +112,7 @@ func (s *FinanceAppService) GenerateProfitReport(ctx context.Context, tenantID, 
 		}
 	}
 	// CNY conversion: costs are already in CNY from cost records
-	if currency != "CNY" {
+	if p.Currency != "CNY" {
 		report.PurchaseCost = report.PurchaseCost * rate
 		report.ShippingCost = report.ShippingCost * rate
 		report.CommissionCost = report.CommissionCost * rate
@@ -152,8 +155,8 @@ func (s *FinanceAppService) ListJournals(ctx context.Context, tenantID string, o
 	return s.repo.ListJournals(ctx, tenantID, offset, limit)
 }
 
-func (s *FinanceAppService) RecordJournal(ctx context.Context, tenantID, orderID, changeType string, amount, before, after float64, currency, idempotencyKey string) (*domain.FinanceJournal, error) {
-	j := domain.NewJournal(fmt.Sprintf("JNL%d", time.Now().UnixNano()), tenantID, orderID, changeType, amount, before, after, currency, idempotencyKey)
+func (s *FinanceAppService) RecordJournal(ctx context.Context, p domain.JournalParams) (*domain.FinanceJournal, error) {
+	j := domain.NewJournal(fmt.Sprintf("JNL%d", time.Now().UnixNano()), p)
 	if err := s.repo.CreateJournal(ctx, j); err != nil {
 		return nil, fmt.Errorf("记录流水失败: %w", err)
 	}

@@ -53,7 +53,7 @@ jobs:
             -Dsonar.exclusions=**/node_modules/**,**/.cache/**,**/migrations/**,backend/scripts/genhash/**,docs/archive/**
             -Dsonar.issue.ignore.multicriteria=e1,e2
             -Dsonar.issue.ignore.multicriteria.e1.ruleKey=secrets:S8215
-            -Dsonar.issue.ignore.multicriteria.e1.resourceKey=**/migrations/**
+            -Dsonar.issue.ignore.multicriteria.e1.resourceKey=**/services/iam-service/migrations/002_seed_dev_admin.sql
             -Dsonar.issue.ignore.multicriteria.e2.ruleKey=go:S2068
             -Dsonar.issue.ignore.multicriteria.e2.resourceKey=**/genhash/**
 

@@ -10,6 +10,8 @@ import (
 	"github.com/Tangyd893/ERP-Go/backend/shared/workflows"
 )
 
+const errOutboundNotFound = "出库单不存在"
+
 type WarehouseAppService struct {
 	repo              *repository.WarehouseRepository
 	fulfillmentClient *OrderFulfillmentClient
@@ -77,7 +79,7 @@ func (s *WarehouseAppService) CheckScan(ctx context.Context, outboundID, skuID s
 	// 幂等：检查出库单状态
 	ob, err := s.repo.FindOutbound(ctx, outboundID)
 	if err != nil {
-		return fmt.Errorf("出库单不存在: %w", err)
+		return fmt.Errorf("%s: %w", errOutboundNotFound, err)
 	}
 	if ob.Status == domain.OutboundChecked || ob.Status == domain.OutboundPacking ||
 		ob.Status == domain.OutboundPacked || ob.Status == domain.OutboundWeighed ||
@@ -124,7 +126,7 @@ func (s *WarehouseAppService) CompleteCheck(ctx context.Context, outboundID stri
 func (s *WarehouseAppService) Pack(ctx context.Context, outboundID string, weight float64) (*domain.Package, error) {
 	ob, err := s.repo.FindOutbound(ctx, outboundID)
 	if err != nil {
-		return nil, fmt.Errorf("出库单不存在: %w", err)
+		return nil, fmt.Errorf("%s: %w", errOutboundNotFound, err)
 	}
 	// 幂等：已打包或更后状态
 	if ob.Status == domain.OutboundPacked || ob.Status == domain.OutboundWeighed ||
@@ -154,7 +156,7 @@ func (s *WarehouseAppService) Pack(ctx context.Context, outboundID string, weigh
 func (s *WarehouseAppService) Weigh(ctx context.Context, outboundID string, weight float64) error {
 	ob, err := s.repo.FindOutbound(ctx, outboundID)
 	if err != nil {
-		return fmt.Errorf("出库单不存在: %w", err)
+		return fmt.Errorf("%s: %w", errOutboundNotFound, err)
 	}
 	// 幂等：已称重或已发货
 	if ob.Status == domain.OutboundWeighed || ob.Status == domain.OutboundShipped {
@@ -242,7 +244,7 @@ func (s *WarehouseAppService) StartWave(ctx context.Context, id string) error {
 func (s *WarehouseAppService) MarkOutboundAbnormal(ctx context.Context, outboundID, reason string) error {
 	ob, err := s.repo.FindOutbound(ctx, outboundID)
 	if err != nil {
-		return fmt.Errorf("出库单不存在: %w", err)
+		return fmt.Errorf("%s: %w", errOutboundNotFound, err)
 	}
 	if err := ob.MarkAbnormal(reason); err != nil {
 		return err

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Tangyd893/ERP-Go/backend/services/finance-service/internal/app"
+	"github.com/Tangyd893/ERP-Go/backend/services/finance-service/internal/domain"
 	sharedErrors "github.com/Tangyd893/ERP-Go/backend/shared/errors"
 	"github.com/Tangyd893/ERP-Go/backend/shared/response"
 	"github.com/gin-gonic/gin"
@@ -71,9 +72,18 @@ func (h *FinanceHandler) importSettlement(c *gin.Context) {
 		return
 	}
 	if req.Currency == "" { req.Currency = "CNY" }
-	bill, err := h.appService.ImportSettlement(c.Request.Context(), c.GetString("tenant_id"),
-		req.StoreID, req.Platform, req.Period, req.Currency,
-		req.TotalSales, req.Refunds, req.Commission, req.FbaFee, req.OtherFee)
+	bill, err := h.appService.ImportSettlement(c.Request.Context(), domain.SettlementParams{
+		TenantID:   c.GetString("tenant_id"),
+		StoreID:    req.StoreID,
+		Platform:   req.Platform,
+		Period:     req.Period,
+		Currency:   req.Currency,
+		Sales:      req.TotalSales,
+		Refunds:    req.Refunds,
+		Commission: req.Commission,
+		Fba:        req.FbaFee,
+		Other:      req.OtherFee,
+	})
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "导入结算失败: "+err.Error())
 		return
@@ -206,8 +216,15 @@ func (h *FinanceHandler) generateProfit(c *gin.Context) {
 		return
 	}
 	if req.Currency == "" { req.Currency = "CNY" }
-	report, err := h.appService.GenerateProfitReport(c.Request.Context(), c.GetString("tenant_id"),
-		req.OrderID, req.OrderNo, req.SKUID, req.SKUCode, req.SaleAmount, req.Currency)
+	report, err := h.appService.GenerateProfitReport(c.Request.Context(), domain.ProfitParams{
+		TenantID:   c.GetString("tenant_id"),
+		OrderID:    req.OrderID,
+		OrderNo:    req.OrderNo,
+		SKUID:      req.SKUID,
+		SKUCode:    req.SKUCode,
+		SaleAmount: req.SaleAmount,
+		Currency:   req.Currency,
+	})
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "生成利润报表失败: "+err.Error())
 		return
@@ -284,8 +301,16 @@ func (h *FinanceHandler) recordJournal(c *gin.Context) {
 	}
 	if req.Currency == "" { req.Currency = "CNY" }
 	if req.IdempotencyKey == "" { req.IdempotencyKey = fmt.Sprintf("JNL-%d", time.Now().UnixNano()) }
-	j, err := h.appService.RecordJournal(c.Request.Context(), c.GetString("tenant_id"),
-		req.OrderID, req.ChangeType, req.Amount, req.BeforeAmount, req.AfterAmount, req.Currency, req.IdempotencyKey)
+	j, err := h.appService.RecordJournal(c.Request.Context(), domain.JournalParams{
+		TenantID:       c.GetString("tenant_id"),
+		OrderID:        req.OrderID,
+		ChangeType:     req.ChangeType,
+		Amount:         req.Amount,
+		Before:         req.BeforeAmount,
+		After:          req.AfterAmount,
+		Currency:       req.Currency,
+		IdempotencyKey: req.IdempotencyKey,
+	})
 	if err != nil {
 		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "记录流水失败: "+err.Error())
 		return

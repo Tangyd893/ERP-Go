@@ -13,6 +13,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const fallbackMsg = "接口已联通，等待数据库迁移完成"
+
 // OrderHandler 订单 HTTP 处理器
 type OrderHandler struct {
 	appService    *app.OrderAppService
@@ -88,7 +90,7 @@ func (h *OrderHandler) getOrder(c *gin.Context) {
 
 func (h *OrderHandler) auditOrder(c *gin.Context) {
 	if h.fallbackMode {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通，等待数据库迁移完成"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "message": fallbackMsg})
 		return
 	}
 
@@ -123,7 +125,7 @@ func (h *OrderHandler) auditOrder(c *gin.Context) {
 
 func (h *OrderHandler) markAbnormal(c *gin.Context) {
 	if h.fallbackMode {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通，等待数据库迁移完成"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "message": fallbackMsg})
 		return
 	}
 
@@ -150,7 +152,7 @@ func (h *OrderHandler) markAbnormal(c *gin.Context) {
 
 func (h *OrderHandler) cancelOrder(c *gin.Context) {
 	if h.fallbackMode {
-		c.JSON(http.StatusOK, gin.H{"code": 0, "message": "接口已联通，等待数据库迁移完成"})
+		c.JSON(http.StatusOK, gin.H{"code": 0, "message": fallbackMsg})
 		return
 	}
 

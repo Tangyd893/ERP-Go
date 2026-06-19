@@ -8,6 +8,7 @@ import (
 )
 
 const whereTenantID = "tenant_id = ?"
+const whereID = "id = ?"
 
 type PurchaseRepository struct {
 	db *gorm.DB
@@ -74,13 +75,13 @@ func (r *PurchaseRepository) ListPurchaseOrders(ctx context.Context, tenantID st
 }
 
 func (r *PurchaseRepository) UpdatePurchaseStatus(ctx context.Context, id, status string) error {
-	return r.db.WithContext(ctx).Model(&PurchaseOrderModel{}).Where("id = ?", id).Update("status", status).Error
+	return r.db.WithContext(ctx).Model(&PurchaseOrderModel{}).Where(whereID, id).Update("status", status).Error
 }
 
 // FindPurchaseOrder 按 ID 查询采购单
 func (r *PurchaseRepository) FindPurchaseOrder(ctx context.Context, id string) (*domain.PurchaseOrder, error) {
 	var m PurchaseOrderModel
-	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&m).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where(whereID, id).First(&m).Error; err != nil {
 		return nil, err
 	}
 	var items []*PurchaseItemModel
@@ -95,7 +96,7 @@ func (r *PurchaseRepository) FindPurchaseOrder(ctx context.Context, id string) (
 // FindPurchaseItem 按 ID 查询采购明细
 func (r *PurchaseRepository) FindPurchaseItem(ctx context.Context, itemID string) (*domain.PurchaseItem, error) {
 	var m PurchaseItemModel
-	if err := r.db.WithContext(ctx).Where("id = ?", itemID).First(&m).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where(whereID, itemID).First(&m).Error; err != nil {
 		return nil, err
 	}
 	return &domain.PurchaseItem{ID: m.ID, OrderID: m.OrderID, SKUID: m.SKUID, SKUCode: m.SKUCode, SKUName: m.SKUName, Quantity: m.Quantity, ReceivedQty: m.ReceivedQty, UnitPrice: m.UnitPrice, TotalPrice: m.TotalPrice}, nil
@@ -103,7 +104,7 @@ func (r *PurchaseRepository) FindPurchaseItem(ctx context.Context, itemID string
 
 // UpdateReceivedQty 更新采购项已收数量
 func (r *PurchaseRepository) UpdateReceivedQty(ctx context.Context, itemID string, qty int) error {
-	return r.db.WithContext(ctx).Model(&PurchaseItemModel{}).Where("id = ?", itemID).Update("received_quantity", qty).Error
+	return r.db.WithContext(ctx).Model(&PurchaseItemModel{}).Where(whereID, itemID).Update("received_quantity", qty).Error
 }
 
 // CreateInboundOrder 创建入库单（含明细）
@@ -131,7 +132,7 @@ func (r *PurchaseRepository) CreateInboundOrder(ctx context.Context, in *domain.
 // FindInboundOrder 查询入库单
 func (r *PurchaseRepository) FindInboundOrder(ctx context.Context, id string) (*domain.InboundOrder, error) {
 	var m InboundOrderModel
-	if err := r.db.WithContext(ctx).Where("id = ?", id).First(&m).Error; err != nil {
+	if err := r.db.WithContext(ctx).Where(whereID, id).First(&m).Error; err != nil {
 		return nil, err
 	}
 	var items []*InboundItemModel
@@ -145,12 +146,12 @@ func (r *PurchaseRepository) FindInboundOrder(ctx context.Context, id string) (*
 
 // UpdateInboundStatus 更新入库单状态
 func (r *PurchaseRepository) UpdateInboundStatus(ctx context.Context, id, status string) error {
-	return r.db.WithContext(ctx).Model(&InboundOrderModel{}).Where("id = ?", id).Update("status", status).Error
+	return r.db.WithContext(ctx).Model(&InboundOrderModel{}).Where(whereID, id).Update("status", status).Error
 }
 
 // UpdateInboundItemQA 更新入库明细质检结果
 func (r *PurchaseRepository) UpdateInboundItemQA(ctx context.Context, itemID string, passed, rejected int) error {
-	return r.db.WithContext(ctx).Model(&InboundItemModel{}).Where("id = ?", itemID).Updates(map[string]interface{}{
+	return r.db.WithContext(ctx).Model(&InboundItemModel{}).Where(whereID, itemID).Updates(map[string]interface{}{
 		"passed_quantity":   passed,
 		"rejected_quantity": rejected,
 	}).Error
