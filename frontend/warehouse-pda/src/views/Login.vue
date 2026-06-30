@@ -29,21 +29,61 @@ async function handleLogin() {
 </script>
 
 <template>
-  <div style="padding: 20px; max-width: 400px; margin: 0 auto">
-    <h2 style="text-align: center; margin-bottom: 24px">WMS PDA</h2>
+  <div class="pda-login">
+    <h2 class="pda-login__title">WMS PDA</h2>
     <el-form @keyup.enter="handleLogin">
       <el-form-item>
         <el-input v-model="form.username" placeholder="工号" size="large" />
       </el-form-item>
       <el-form-item>
-        <el-input v-model="form.password" type="password" placeholder="密码" size="large" show-password />
+        <el-input
+          v-model="form.password"
+          type="password"
+          placeholder="密码"
+          size="large"
+          show-password
+        />
       </el-form-item>
       <el-form-item>
-        <el-button type="primary" size="large" style="width: 100%" :loading="loading" @click="handleLogin">
+        <el-button
+          type="primary"
+          size="large"
+          class="pda-login__btn"
+          :loading="loading"
+          @click="handleLogin"
+        >
           登 录
         </el-button>
       </el-form-item>
     </el-form>
-    <p style="color: #909399; font-size: 12px; text-align: center">开发默认: admin / admin123</p>
+    <p class="pda-login__hint">开发默认: admin / admin123</p>
   </div>
 </template>
+
+<style scoped>
+.pda-login {
+  padding: 48px 24px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.pda-login__title {
+  text-align: center;
+  margin-bottom: 32px;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--pda-text, #303133);
+}
+
+.pda-login__btn {
+  width: 100%;
+  min-height: var(--pda-touch-min, 44px);
+}
+
+.pda-login__hint {
+  color: var(--pda-text-secondary, #909399);
+  font-size: 12px;
+  text-align: center;
+  margin-top: 16px;
+}
+</style>

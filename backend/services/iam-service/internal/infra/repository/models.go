@@ -18,7 +18,7 @@ type UserModel struct {
 	UpdatedAt    time.Time  `gorm:"column:updated_at"`
 }
 
-func (UserModel) TableName() string { return "users" }
+func (UserModel) TableName() string { return "iam.iam_users" }
 
 // RoleModel 角色表 GORM 模型
 type RoleModel struct {
@@ -32,7 +32,7 @@ type RoleModel struct {
 	UpdatedAt   time.Time `gorm:"column:updated_at"`
 }
 
-func (RoleModel) TableName() string { return "roles" }
+func (RoleModel) TableName() string { return "iam.iam_roles" }
 
 // PermissionModel 权限表 GORM 模型
 type PermissionModel struct {
@@ -48,7 +48,7 @@ type PermissionModel struct {
 	UpdatedAt    time.Time `gorm:"column:updated_at"`
 }
 
-func (PermissionModel) TableName() string { return "permissions" }
+func (PermissionModel) TableName() string { return "iam.iam_permissions" }
 
 // UserRoleModel 用户-角色关联表 GORM 模型
 type UserRoleModel struct {
@@ -57,7 +57,7 @@ type UserRoleModel struct {
 	CreatedAt time.Time `gorm:"column:created_at"`
 }
 
-func (UserRoleModel) TableName() string { return "user_roles" }
+func (UserRoleModel) TableName() string { return "iam.iam_user_roles" }
 
 // RolePermissionModel 角色-权限关联表 GORM 模型
 type RolePermissionModel struct {
@@ -66,7 +66,7 @@ type RolePermissionModel struct {
 	CreatedAt    time.Time `gorm:"column:created_at"`
 }
 
-func (RolePermissionModel) TableName() string { return "role_permissions" }
+func (RolePermissionModel) TableName() string { return "iam.iam_role_permissions" }
 
 // AuditLogModel 审计日志表 GORM 模型
 type AuditLogModel struct {
@@ -87,4 +87,4 @@ type AuditLogModel struct {
 	CreatedAt    time.Time `gorm:"column:created_at;index"`
 }
 
-func (AuditLogModel) TableName() string { return "audit_logs" }
+func (AuditLogModel) TableName() string { return "iam.iam_audit_logs" }

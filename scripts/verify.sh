@@ -57,6 +57,9 @@ if [[ "$SKIP_FRONTEND" -eq 0 ]]; then
     step "npm run typecheck"
     npm run typecheck
 
+    step "npm run lint:ci"
+    npm run lint:ci
+
     step "npm run build:admin"
     npm run build:admin
 

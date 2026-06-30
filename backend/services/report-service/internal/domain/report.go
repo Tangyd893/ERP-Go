@@ -40,3 +40,27 @@ type ProfitSummary struct {
 	Currency      string  `json:"currency"`
 	CreatedAt     time.Time `json:"created_at"`
 }
+
+// TrendPoint 趋势数据点
+type TrendPoint struct {
+	Date        string  `json:"date"`
+	OrderCount  int64   `json:"order_count"`
+	SalesAmount float64 `json:"sales_amount"`
+}
+
+// TimelinessRate 出库及时率
+type TimelinessRate struct {
+	Within24h int64 `json:"within_24h"`
+	Within48h int64 `json:"within_48h"`
+	Overdue   int64 `json:"overdue"`
+}
+
+// DashboardData 看板聚合数据（T-636）
+type DashboardData struct {
+	OrderCount    int64          `json:"order_count"`
+	SalesAmount   float64        `json:"sales_amount"`
+	OutboundCount int64          `json:"outbound_count"`
+	SkuCount      int64          `json:"sku_count"`
+	Trend         []*TrendPoint  `json:"trend"`
+	Timeliness    TimelinessRate `json:"timeliness"`
+}

@@ -1,5 +1,5 @@
-# 按 docs 约定顺序执行 SQL 迁移（需 psql 与 PostgreSQL）
-# 用法:
+# Run SQL migrations against PostgreSQL (requires psql client or Docker)
+# Usage:
 #   .\scripts\migrate.ps1
 #   $env:DATABASE_URL="postgres://user:password@host:port/db?sslmode=disable"; .\scripts\migrate.ps1
 
@@ -18,7 +18,7 @@ if (-not $DatabaseUrl) {
     if ($user -and $pass) {
         $DatabaseUrl = "postgres://${user}:${pass}@${dbHost}:${port}/${dbname}?sslmode=disable"
     } else {
-        Write-Error "未设置 DATABASE_URL 且 DATABASE_USER/DATABASE_PASSWORD 环境变量为空。请复制 .env.example 并配置 DATABASE_URL，或设置 DATABASE_* 环境变量。"
+        Write-Error "DATABASE_URL not set and DATABASE_USER/DATABASE_PASSWORD missing. Copy .env.example and configure."
         exit 1
     }
 }
@@ -26,19 +26,14 @@ if (-not $DatabaseUrl) {
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 Set-Location $RepoRoot
 
-$psql = Get-Command psql -ErrorAction SilentlyContinue
-if (-not $psql) {
-    Write-Error "psql not found. Install PostgreSQL client or run migrate.sh in Git Bash."
-}
-
-function Invoke-Migration([string]$RelativePath) {
+function Invoke-MigrationDocker([string]$RelativePath) {
     $fullPath = Join-Path $RepoRoot $RelativePath
     if (-not (Test-Path $fullPath)) {
-        Write-Warning "Skip missing: $RelativePath"
+        Write-Output "SKIP missing: $RelativePath"
         return
     }
     Write-Output "==> $RelativePath"
-    & psql $DatabaseUrl -v ON_ERROR_STOP=1 -f $fullPath
+    Get-Content -Path $fullPath -Raw -Encoding UTF8 | docker exec -i erp-postgres psql -U erp -d erp_go -v ON_ERROR_STOP=1
     if ($LASTEXITCODE -ne 0) {
         throw "Migration failed: $RelativePath"
     }
@@ -47,8 +42,8 @@ function Invoke-Migration([string]$RelativePath) {
 Write-Output "Migrating ERP-Go database"
 Write-Output "DATABASE_URL=$DatabaseUrl"
 
-Invoke-Migration "backend/migrations/outbox/001_create_outbox.sql"
-Invoke-Migration "backend/migrations/outbox/002_add_tenant_id.sql"
+Invoke-MigrationDocker "backend/migrations/outbox/001_create_outbox.sql"
+Invoke-MigrationDocker "backend/migrations/outbox/002_add_tenant_id.sql"
 
 $services = @(
     "iam-service", "tenant-service", "product-service", "channel-service", "order-service",
@@ -60,7 +55,7 @@ foreach ($svc in $services) {
     $dir = Join-Path $RepoRoot "backend/services/$svc/migrations"
     if (Test-Path $dir) {
         Get-ChildItem -Path $dir -Filter "*.sql" | Sort-Object Name | ForEach-Object {
-            Invoke-Migration "backend/services/$svc/migrations/$($_.Name)"
+            Invoke-MigrationDocker "backend/services/$svc/migrations/$($_.Name)"
         }
     }
 }

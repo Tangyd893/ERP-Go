@@ -54,6 +54,18 @@ function markAllRead() {
   unreadCount.value = 0;
 }
 
+function getTagType(type: string): string {
+  if (type === "info") return "info";
+  if (type === "warning") return "warning";
+  return "success";
+}
+
+function getTypeLabel(type: string): string {
+  if (type === "info") return "提醒";
+  if (type === "warning") return "告警";
+  return "完成";
+}
+
 onMounted(() => {
   fetchNotifications();
 });
@@ -73,7 +85,7 @@ onMounted(() => {
         <el-empty v-else-if="!isDemo && notifications.length === 0 && !loading" description="暂无通知" />
         <div v-for="n in notifications" :key="n.id" style="padding: 12px 0; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; justify-content: space-between">
           <div>
-            <el-tag :type="n.type as 'info' | 'warning' | 'success'" size="small" style="margin-right: 8px">{{ n.type === 'info' ? '提醒' : n.type === 'warning' ? '告警' : '完成' }}</el-tag>
+            <el-tag :type="getTagType(n.type)" size="small" style="margin-right: 8px">{{ getTypeLabel(n.type) }}</el-tag>
             <span :style="{ fontWeight: n.read ? 'normal' : 'bold' }">{{ n.title }}</span>
             <span style="color: #909399; margin-left: 8px; font-size: 13px">{{ n.content }}</span>
           </div>

@@ -98,8 +98,8 @@ func (r *UserRepository) FindWithRoles(ctx context.Context, tenantID, usernameOr
 	// 加载用户角色及其权限
 	var roleModels []RoleModel
 	err = r.db.WithContext(ctx).
-		Joins("JOIN user_roles ur ON ur.role_id = roles.id").
-		Where("ur.user_id = ? AND roles.tenant_id = ? AND roles.status = ?", user.ID, tenantID, "active").
+		Joins("JOIN iam.iam_user_roles ur ON ur.role_id = iam.iam_roles.id").
+		Where("ur.user_id = ? AND iam.iam_roles.tenant_id = ? AND iam.iam_roles.status = ?", user.ID, tenantID, "active").
 		Find(&roleModels).Error
 	if err != nil {
 		return nil, err
@@ -111,7 +111,7 @@ func (r *UserRepository) FindWithRoles(ctx context.Context, tenantID, usernameOr
 		// 加载角色的权限
 		var permModels []PermissionModel
 		err = r.db.WithContext(ctx).
-			Joins("JOIN role_permissions rp ON rp.permission_id = permissions.id").
+			Joins("JOIN iam.iam_role_permissions rp ON rp.permission_id = iam.iam_permissions.id").
 			Where("rp.role_id = ?", rm.ID).
 			Find(&permModels).Error
 		if err != nil {

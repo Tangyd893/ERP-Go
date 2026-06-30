@@ -35,15 +35,22 @@ build: ## 编译所有 Go 服务
 
 build-all: build frontend-build ## 编译后端+前端
 
-test: ## 运行所有单元测试
-	mkdir -p $(GO_CACHE) $(GO_MOD_CACHE) && GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go test -C backend ./... -v -count=1
+test: ## 运行单元测试（跳过需 DB 的集成测试）
+	mkdir -p $(GO_CACHE) $(GO_MOD_CACHE) && GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go test -C backend ./... -short -count=1
 
-test-cover: ## 运行测试并生成覆盖率报告
-	mkdir -p $(GO_CACHE) $(GO_MOD_CACHE) && GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go test -C backend ./... -coverprofile=../coverage.out -covermode=atomic
+test-all: ## 运行全部测试（含集成测试，需 Docker 或 TEST_DATABASE_URL）
+	mkdir -p $(GO_CACHE) $(GO_MOD_CACHE) && GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go test -C backend ./... -tags=integration -count=1
+
+test-cover: ## 运行单元测试并生成覆盖率报告
+	mkdir -p $(GO_CACHE) $(GO_MOD_CACHE) && GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go test -C backend ./... -short -coverprofile=../coverage.out -covermode=atomic
 	GOCACHE=$(GO_CACHE) go tool cover -html=coverage.out -o coverage.html
 
-lint: ## 代码检查 (go vet)
+lint: ## 代码检查 (go vet + eslint)
 	mkdir -p $(GO_CACHE) $(GO_MOD_CACHE) && GOCACHE=$(GO_CACHE) GOMODCACHE=$(GO_MOD_CACHE) go vet -C backend ./...
+	npm run lint
+
+frontend-lint: ## 前端 ESLint 检查 (仅 error)
+	npm run lint:ci
 
 verify: ## 统一验证 (Go + 前端)
 	bash scripts/verify.sh

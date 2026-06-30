@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"os"
+	"strings"
 	"time"
 
 	"github.com/Tangyd893/ERP-Go/backend/shared/logger"
@@ -123,9 +125,31 @@ func Recovery(log logger.Logger) gin.HandlerFunc {
 }
 
 // CORS 跨域中间件
+// 开发环境默认允许所有来源；生产环境通过 CORS_ALLOWED_ORIGINS 环境变量配置白名单（逗号分隔）
 func CORS() gin.HandlerFunc {
+	allowedOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if allowedOrigins == "" {
+		allowedOrigins = "*"
+	}
+
+	allowAll := allowedOrigins == "*"
+
 	return func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
+		origin := c.GetHeader("Origin")
+
+		if allowAll {
+			c.Header("Access-Control-Allow-Origin", "*")
+		} else if origin != "" {
+			// 校验请求 Origin 是否在白名单中
+			for _, o := range strings.Split(allowedOrigins, ",") {
+				if strings.TrimSpace(o) == origin {
+					c.Header("Access-Control-Allow-Origin", origin)
+					c.Header("Vary", "Origin")
+					break
+				}
+			}
+		}
+
 		c.Header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Origin,Content-Type,Accept,Authorization,X-Request-ID,X-Trace-ID,X-Tenant-ID,X-User-ID,X-Idempotency-Key")
 		c.Header("Access-Control-Expose-Headers", "X-Request-ID,X-Trace-ID")

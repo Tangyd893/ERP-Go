@@ -16,7 +16,7 @@ INSERT INTO iam_users (id, tenant_id, username, password_hash, nickname, email, 
         'user-default-admin',
         'default',
         'admin',
-        '$2a$10$7ASstAKbyxrbzuLSGxkKruAFMbDpZ/9xFqAaiQgroY50DEB4vi8Ee',
+        '$2a$10$0bq47I5qJ5GHKlJewuj6jetY2hor.uYTseL4WLDITwIYhPo2pQole',
         '系统管理员',
         'admin@local.dev',
         'active'

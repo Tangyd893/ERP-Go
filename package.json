@@ -1,6 +1,7 @@
 {
   "name": "erp-go",
   "private": true,
+  "type": "module",
   "workspaces": [
     "frontend/shared",
     "frontend/admin-web",
@@ -14,7 +15,18 @@
     "build:admin": "npm -w frontend/admin-web run build",
     "build:pda": "npm -w frontend/warehouse-pda run build",
     "build:dashboard": "npm -w frontend/dashboard-web run build",
-    "lint": "npm -w frontend/admin-web run lint && npm -w frontend/warehouse-pda run lint && npm -w frontend/dashboard-web run lint",
-    "typecheck": "npm -w frontend/admin-web run typecheck && npm -w frontend/warehouse-pda run typecheck && npm -w frontend/dashboard-web run typecheck"
+    "lint": "npm -w frontend/admin-web run lint && npm -w frontend/warehouse-pda run lint && npm -w frontend/dashboard-web run lint && npm -w frontend/shared run lint",
+    "lint:ci": "npm -w frontend/admin-web run lint:ci && npm -w frontend/warehouse-pda run lint:ci && npm -w frontend/dashboard-web run lint:ci && npm -w frontend/shared run lint:ci",
+    "typecheck": "npm -w frontend/admin-web run typecheck && npm -w frontend/warehouse-pda run typecheck && npm -w frontend/dashboard-web run typecheck",
+    "test:e2e": "npx playwright test --config testing/e2e/playwright.config.ts",
+    "test:e2e:ui": "npx playwright test --config testing/e2e/playwright.config.ts --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "eslint-plugin-vue": "^9.28.0",
+    "typescript-eslint": "^8.0.0"
   }
 }

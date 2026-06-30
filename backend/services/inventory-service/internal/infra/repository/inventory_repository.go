@@ -114,7 +114,7 @@ func (r *InventoryRepository) LockStock(ctx context.Context, lock *domain.Invent
 			WarehouseID:     lock.WarehouseID,
 			Quantity:        lock.Quantity,
 			ReleasedQty:     0,
-			Status:          "locked",
+			Status:          domain.LockStatusLocked,
 			LockKey:         lock.LockKey,
 			CreatedAt:       lock.CreatedAt,
 		}
@@ -156,7 +156,7 @@ func (r *InventoryRepository) ReleaseStock(ctx context.Context, lockKey string, 
 			return fmt.Errorf(errFormat, errLockNotFound, err)
 		}
 
-		if lockModel.Status == "released" || lockModel.Status == "deducted" {
+		if lockModel.Status == domain.LockStatusReleased || lockModel.Status == domain.LockStatusDeducted {
 			return nil // 幂等：已释放或已扣减
 		}
 
@@ -183,7 +183,7 @@ func (r *InventoryRepository) ReleaseStock(ctx context.Context, lockKey string, 
 		}
 
 		lockModel.ReleasedQty += releaseQty
-		lockModel.Status = "released"
+		lockModel.Status = domain.LockStatusReleased
 		lockModel.UpdatedAt = time.Now()
 		if err := tx.Save(&lockModel).Error; err != nil {
 			return fmt.Errorf(errFormat, errUpdateLock, err)
@@ -201,7 +201,7 @@ func (r *InventoryRepository) DeductStock(ctx context.Context, lockKey string) e
 			return fmt.Errorf(errFormat, errLockNotFound, err)
 		}
 
-		if lockModel.Status == "deducted" {
+		if lockModel.Status == domain.LockStatusDeducted {
 			return nil // 幂等：已扣减
 		}
 
@@ -229,7 +229,7 @@ func (r *InventoryRepository) DeductStock(ctx context.Context, lockKey string) e
 			return fmt.Errorf(errFormat, errUpdateBalance, err)
 		}
 
-		lockModel.Status = "deducted"
+		lockModel.Status = domain.LockStatusDeducted
 		lockModel.UpdatedAt = time.Now()
 		if err := tx.Save(&lockModel).Error; err != nil {
 			return fmt.Errorf(errFormat, errUpdateLock, err)
@@ -246,7 +246,7 @@ func (r *InventoryRepository) DeductByOrderID(ctx context.Context, orderID strin
 		return err
 	}
 	for _, lock := range locks {
-		if lock.Status == "deducted" || lock.Status == "released" {
+		if lock.Status == domain.LockStatusDeducted || lock.Status == domain.LockStatusReleased {
 			continue
 		}
 		if err := r.DeductStock(ctx, lock.LockKey); err != nil {

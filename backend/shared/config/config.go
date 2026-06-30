@@ -10,6 +10,44 @@ import (
 	"github.com/spf13/viper"
 )
 
+// IsProduction 返回当前是否生产环境
+func IsProduction() bool {
+	return os.Getenv("ENVIRONMENT") == "production"
+}
+
+// IsDevelopment 返回当前是否开发环境（ENVIRONMENT 为空或 "development"）
+func IsDevelopment() bool {
+	env := os.Getenv("ENVIRONMENT")
+	return env == "" || env == "development"
+}
+
+// ValidateProduction 生产环境关键配置校验，返回 nil 表示通过
+func ValidateProduction(jwtSecret, dbPassword string) error {
+	errs := make([]string, 0)
+
+	if jwtSecret == "" || jwtSecret == DefaultJWTSecret || jwtSecret == DefaultJWTSecretLegacy {
+		errs = append(errs, "JWT_SECRET 为默认值，生产环境必须设置唯一的 JWT 密钥")
+	}
+
+	if dbPassword == "" || dbPassword == DefaultDBPassword {
+		errs = append(errs, "DATABASE_PASSWORD 为默认值，生产环境必须设置数据库密码")
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("生产环境安全校验失败:\n  - %s", strings.Join(errs, "\n  - "))
+	}
+	return nil
+}
+
+// DefaultJWTSecret IAM 默认 JWT Secret（与 gateway 的默认值统一）
+const DefaultJWTSecret = "erp-go-dev-secret-change-in-production"
+
+// DefaultJWTSecretLegacy gateway 旧版默认值（兼容校验）
+const DefaultJWTSecretLegacy = "erp-go-default-secret-change-in-production"
+
+// DefaultDBPassword 默认数据库密码（仅开发环境可用）
+const DefaultDBPassword = "erp123"
+
 // Config 基础服务配置，所有服务共享
 type Config struct {
 	Server   ServerConfig   `mapstructure:"server"`
@@ -158,6 +196,11 @@ func Load(configPath string) (*Config, error) {
 	}
 
 	applyEnvOverrides(cfg)
+
+	// T-609: 生产环境数据库密码不能是默认值
+	if IsProduction() && cfg.Database.Password == DefaultDBPassword {
+		return nil, fmt.Errorf("生产环境安全校验失败: DATABASE_PASSWORD 为默认值 %q，必须设置数据库密码", DefaultDBPassword)
+	}
 
 	return cfg, nil
 }

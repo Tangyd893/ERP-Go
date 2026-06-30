@@ -1,0 +1,100 @@
+# T-607: K8s NetworkPolicy — 强制所有外部流量经 Gateway，禁止直连后端服务
+# 用法: kubectl apply -f docker/k8s/network-policy.yaml
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-all-ingress
+  namespace: erp-go
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    # 仅允许来自 api-gateway 的入站流量
+    - from:
+        - podSelector:
+            matchLabels:
+              app: api-gateway
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-ingress
+  namespace: erp-go
+spec:
+  podSelector:
+    matchLabels:
+      app: api-gateway
+  policyTypes:
+    - Ingress
+  ingress:
+    # 允许 Ingress Controller (label: app=nginx-ingress) 访问 Gateway
+    - from:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app: nginx-ingress
+      ports:
+        - port: 8080
+          protocol: TCP
+    # 允许集群内监控/健康检查
+    - from:
+        - namespaceSelector: {}
+      ports:
+        - port: 8080
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-egress
+  namespace: erp-go
+spec:
+  podSelector:
+    matchLabels:
+      app: api-gateway
+  policyTypes:
+    - Egress
+  egress:
+    # Gateway → 后端微服务
+    - to:
+        - podSelector: {}
+      ports:
+        - port: 8081
+          protocol: TCP
+        - port: 8082
+          protocol: TCP
+        - port: 8083
+          protocol: TCP
+        - port: 8084
+          protocol: TCP
+        - port: 8085
+          protocol: TCP
+        - port: 8086
+          protocol: TCP
+        - port: 8087
+          protocol: TCP
+        - port: 8088
+          protocol: TCP
+        - port: 8089
+          protocol: TCP
+        - port: 8091
+          protocol: TCP
+        - port: 8092
+          protocol: TCP
+        - port: 8093
+          protocol: TCP
+        - port: 8094
+          protocol: TCP
+    # DNS 解析
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP

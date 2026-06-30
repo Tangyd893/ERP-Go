@@ -28,7 +28,7 @@ export interface OutboundOrder {
 export interface ScanRecord {
   id: string;
   time: Date;
-  type: "pick" | "check";
+  type: "pick" | "check" | "pack" | "weigh";
   targetId: string;
   targetLabel: string;
   quantity: number;
@@ -203,7 +203,7 @@ export const useWarehouseStore = defineStore("warehouse-pda", () => {
     const record: ScanRecord = {
       id: key,
       time: new Date(),
-      type: "check",
+      type: "pack",
       targetId: outboundId,
       targetLabel: outboundId,
       quantity: weight,
@@ -237,7 +237,7 @@ export const useWarehouseStore = defineStore("warehouse-pda", () => {
     const record: ScanRecord = {
       id: key,
       time: new Date(),
-      type: "check",
+      type: "weigh",
       targetId: outboundId,
       targetLabel: outboundId,
       quantity: weight,
@@ -282,6 +282,7 @@ export const useWarehouseStore = defineStore("warehouse-pda", () => {
     checkScan,
     pack,
     weigh,
+    confirmShip,
     clearScanHistory,
   };
 });

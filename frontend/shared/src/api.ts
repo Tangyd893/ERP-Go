@@ -25,7 +25,11 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem("access_token");
-      globalThis.location.href = "/login";
+      const redirectOn401 = import.meta.env.VITE_AUTH_REDIRECT !== "false";
+      const onLoginPage = globalThis.location.pathname === "/login";
+      if (redirectOn401 && !onLoginPage) {
+        globalThis.location.href = "/login";
+      }
     }
     return Promise.reject(error);
   }

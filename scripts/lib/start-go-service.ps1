@@ -56,6 +56,6 @@ function Start-GoServiceSilent {
         }
     }
 
-    Write-Output "  $Name (PID $($proc.Id), log: .cache/logs/$Name.log)" -ForegroundColor DarkGray
+    Write-Output "  $Name (PID $($proc.Id), log: .cache/logs/$Name.log)"
     return $proc
 }

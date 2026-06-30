@@ -12,6 +12,7 @@ import (
 
 const errOutboundNotFound = "出库单不存在"
 const errFormat = "%s: %w"
+const pkgIDFormat = "PKG%d"
 
 type WarehouseAppService struct {
 	repo              *repository.WarehouseRepository
@@ -142,7 +143,7 @@ func (s *WarehouseAppService) Pack(ctx context.Context, outboundID string, weigh
 	}
 	now := time.Now()
 	pkg := &domain.Package{
-		ID:         fmt.Sprintf("PKG%d", now.UnixNano()),
+		ID:         fmt.Sprintf(pkgIDFormat, now.UnixNano()),
 		OutboundID: outboundID,
 		Weight:     weight,
 		CreatedAt:  now,
@@ -172,7 +173,7 @@ func (s *WarehouseAppService) Weigh(ctx context.Context, outboundID string, weig
 	// 更新包裹重量
 	now := time.Now()
 	pkg := &domain.Package{
-		ID:         fmt.Sprintf("PKG%d", now.UnixNano()),
+		ID:         fmt.Sprintf(pkgIDFormat, now.UnixNano()),
 		OutboundID: outboundID,
 		Weight:     weight,
 		CreatedAt:  now,

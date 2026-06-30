@@ -8,6 +8,22 @@ import (
 
 const journalIDFormat = "jrnl-%s-%s"
 
+// Lock status constants
+const (
+	LockStatusLocked   = "locked"
+	LockStatusReleased = "released"
+	LockStatusDeducted = "deducted"
+)
+
+// Journal change type constants
+const (
+	ChangeTypeLock     = "lock"
+	ChangeTypeRelease  = "release"
+	ChangeTypeDeduct   = "deduct"
+	ChangeTypeIncrease = "increase"
+	ChangeTypeAdjust   = "adjust"
+)
+
 // InventoryBalance 库存余额聚合根
 type InventoryBalance struct {
 	ID             string    `json:"id"`
@@ -153,7 +169,7 @@ func (s *InventoryService) LockInventory(balance *InventoryBalance, orderID stri
 			SKUID:       skuID,
 			WarehouseID: warehouseID,
 			Quantity:    qty,
-			Status:      "locked",
+			Status:      LockStatusLocked,
 			LockKey:     lockKeyPrefix, // 幂等键
 			CreatedAt:   time.Now(),
 		}
@@ -164,7 +180,7 @@ func (s *InventoryService) LockInventory(balance *InventoryBalance, orderID stri
 			WarehouseID:   warehouseID,
 			SKUID:         skuID,
 			OrderID:       orderID,
-			ChangeType:    "lock",
+			ChangeType:    ChangeTypeLock,
 			ChangeQty:     qty,
 			BeforeTotal:   beforeTotal,
 			AfterTotal:    balance.TotalQuantity,
@@ -203,7 +219,7 @@ func (s *InventoryService) ReleaseInventory(balance *InventoryBalance, locks []*
 		}
 
 		lock.ReleasedQty += releaseQty
-		lock.Status = "released"
+		lock.Status = LockStatusReleased
 		lock.UpdatedAt = time.Now()
 
 		journal := &InventoryJournal{
@@ -211,7 +227,7 @@ func (s *InventoryService) ReleaseInventory(balance *InventoryBalance, locks []*
 			WarehouseID:   lock.WarehouseID,
 			SKUID:         lock.SKUID,
 			OrderID:       lock.OrderID,
-			ChangeType:    "release",
+			ChangeType:    ChangeTypeRelease,
 			ChangeQty:     releaseQty,
 			BeforeTotal:   beforeTotal,
 			AfterTotal:    balance.TotalQuantity,
@@ -249,7 +265,7 @@ func (s *InventoryService) DeductInventory(balance *InventoryBalance, locks []*I
 			return nil, err
 		}
 
-		lock.Status = "deducted"
+		lock.Status = LockStatusDeducted
 		lock.UpdatedAt = time.Now()
 
 		journal := &InventoryJournal{
@@ -257,7 +273,7 @@ func (s *InventoryService) DeductInventory(balance *InventoryBalance, locks []*I
 			WarehouseID:   lock.WarehouseID,
 			SKUID:         lock.SKUID,
 			OrderID:       lock.OrderID,
-			ChangeType:    "deduct",
+			ChangeType:    ChangeTypeDeduct,
 			ChangeQty:     deductQty,
 			BeforeTotal:   beforeTotal,
 			AfterTotal:    balance.TotalQuantity,

@@ -1,10 +1,58 @@
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, type Component } from "vue";
 import { useRouter, useRoute } from "vue-router";
+import { useAuthStore } from "@/stores/auth";
+import {
+  ArrowDown,
+  Avatar,
+  Bell,
+  Box,
+  Checked,
+  Connection,
+  DataAnalysis,
+  Document,
+  DocumentChecked,
+  Goods,
+  House,
+  List,
+  Money,
+  OfficeBuilding,
+  Setting,
+  Shop,
+  ShoppingCart,
+  Tickets,
+  Upload,
+  User,
+  Van,
+} from "@element-plus/icons-vue";
 
 const router = useRouter();
 const route = useRoute();
+const auth = useAuthStore();
 const activeMenu = ref(route.path);
+
+const iconMap: Record<string, Component> = {
+  DataAnalysis,
+  Setting,
+  User,
+  Avatar,
+  OfficeBuilding,
+  DocumentChecked,
+  Goods,
+  List,
+  Connection,
+  Shop,
+  Upload,
+  Document,
+  Tickets,
+  Checked,
+  Box,
+  House,
+  Van,
+  Bell,
+  ShoppingCart,
+  Money,
+};
 
 watch(
   () => route.path,
@@ -93,20 +141,20 @@ const handleMenuSelect = (index: string) => {
           <el-sub-menu v-if="item.children" :index="item.title">
             <template #title>
               <el-icon>
-                <component :is="item.icon" />
+                <component :is="iconMap[item.icon]" />
               </el-icon>
               <span>{{ item.title }}</span>
             </template>
             <el-menu-item v-for="child in item.children" :key="child.path" :index="child.path">
               <el-icon>
-                <component :is="child.icon" />
+                <component :is="iconMap[child.icon]" />
               </el-icon>
               <span>{{ child.title }}</span>
             </el-menu-item>
           </el-sub-menu>
           <el-menu-item v-else :index="item.path">
             <el-icon>
-              <component :is="item.icon" />
+              <component :is="iconMap[item.icon]" />
             </el-icon>
             <span>{{ item.title }}</span>
           </el-menu-item>
@@ -126,7 +174,7 @@ const handleMenuSelect = (index: string) => {
           <template #dropdown>
             <el-dropdown-menu>
               <el-dropdown-item>个人设置</el-dropdown-item>
-              <el-dropdown-item divided @click="router.push('/login')">退出登录</el-dropdown-item>
+              <el-dropdown-item divided @click="auth.logout(); router.push('/login')">退出登录</el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>

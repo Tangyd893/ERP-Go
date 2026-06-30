@@ -1,0 +1,434 @@
+openapi: "3.0.3"
+info:
+  title: ERP-Go API Gateway
+  description: |
+    跨境电商 ERP 系统 API 网关契约。
+    所有请求需经过 API Gateway（端口 8080），Gateway 负责 JWT 鉴权、租户上下文注入和反向代理。
+  version: "0.9.0"
+  contact:
+    name: ERP-Go Team
+
+servers:
+  - url: http://localhost:8080
+    description: 本地开发
+  - url: https://api.erp-go.example.com
+    description: 生产环境（示例）
+
+security:
+  - BearerAuth: []
+
+paths:
+  /health:
+    get:
+      summary: 健康检查
+      tags: [System]
+      security: []
+      responses:
+        "200":
+          description: 服务正常
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /api/v1/iam/login:
+    post:
+      summary: 用户登录
+      tags: [IAM]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+
+  /api/v1/iam/refresh:
+    post:
+      summary: 刷新令牌
+      tags: [IAM]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshRequest"
+      responses:
+        "200":
+          description: 令牌刷新成功
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+
+  /api/v1/iam/logout:
+    post:
+      summary: 登出
+      tags: [IAM]
+      responses:
+        "200":
+          description: 登出成功
+
+  /api/v1/iam/user/info:
+    get:
+      summary: 获取当前用户信息
+      tags: [IAM]
+      responses:
+        "200":
+          description: 用户信息
+
+  /api/v1/iam/check-permission:
+    post:
+      summary: 权限检查
+      tags: [IAM]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckPermissionRequest"
+      responses:
+        "200":
+          description: 权限检查结果
+
+  /api/v1/iam/users:
+    get:
+      summary: 用户列表
+      tags: [IAM]
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: 分页用户列表
+
+  /api/v1/iam/users/{id}:
+    get:
+      summary: 获取用户详情
+      tags: [IAM]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: 用户详情
+
+  /api/v1/iam/roles:
+    get:
+      summary: 角色列表
+      tags: [IAM]
+      responses:
+        "200":
+          description: 角色列表
+
+  /api/v1/iam/permissions:
+    get:
+      summary: 权限列表
+      tags: [IAM]
+      responses:
+        "200":
+          description: 权限列表
+
+  /api/v1/order/orders:
+    get:
+      summary: 订单列表
+      tags: [Order]
+      parameters:
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: page_size
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        "200":
+          description: 分页订单列表
+
+  /api/v1/order/orders/{id}:
+    get:
+      summary: 获取订单详情
+      tags: [Order]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: 订单详情
+
+  /api/v1/order/orders/audit:
+    post:
+      summary: 订单审核（通过/驳回）
+      tags: [Order]
+      responses:
+        "200":
+          description: 审核结果
+
+  /api/v1/order/orders/abnormal:
+    post:
+      summary: 标记订单异常
+      tags: [Order]
+      responses:
+        "200":
+          description: 标记结果
+
+  /api/v1/order/orders/cancel:
+    post:
+      summary: 取消订单
+      tags: [Order]
+      responses:
+        "200":
+          description: 取消结果
+
+  /api/v1/order/fulfillment/outbound-shipped:
+    post:
+      summary: 出库发货回调
+      tags: [Order]
+      responses:
+        "200":
+          description: 回调处理结果
+
+  /api/v1/order/outbox/failed:
+    get:
+      summary: 查询失败 Outbox 消息
+      tags: [Order]
+      responses:
+        "200":
+          description: 失败消息列表
+
+  /api/v1/order/outbox/retry:
+    post:
+      summary: 重试 Outbox 消息
+      tags: [Order]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [id]
+              properties:
+                id: { type: integer }
+      responses:
+        "200":
+          description: 重试结果
+
+  /api/v1/warehouse/outbounds:
+    get:
+      summary: 出库单列表
+      tags: [Warehouse]
+      responses:
+        "200":
+          description: 出库单列表
+
+  /api/v1/warehouse/outbounds/{id}:
+    get:
+      summary: 获取出库单详情
+      tags: [Warehouse]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: 出库单详情
+
+  /api/v1/warehouse/waves:
+    get:
+      summary: 波次列表
+      tags: [Warehouse]
+      responses:
+        "200":
+          description: 波次列表
+
+  /api/v1/warehouse/waves/{id}:
+    get:
+      summary: 获取波次详情
+      tags: [Warehouse]
+      responses:
+        "200":
+          description: 波次详情
+
+  /api/v1/inventory/balances:
+    get:
+      summary: 库存余额列表
+      tags: [Inventory]
+      responses:
+        "200":
+          description: 库存余额列表
+
+  /api/v1/product/products:
+    get:
+      summary: 商品列表
+      tags: [Product]
+      responses:
+        "200":
+          description: 商品列表
+
+  /api/v1/channel/stores:
+    get:
+      summary: 店铺列表
+      tags: [Channel]
+      responses:
+        "200":
+          description: 店铺列表
+
+  /api/v1/purchase/orders:
+    get:
+      summary: 采购单列表
+      tags: [Purchase]
+      responses:
+        "200":
+          description: 采购单列表
+
+  /api/v1/finance/records:
+    get:
+      summary: 财务记录
+      tags: [Finance]
+      responses:
+        "200":
+          description: 财务记录列表
+
+  /api/v1/report/sales:
+    get:
+      summary: 销售报表
+      tags: [Report]
+      responses:
+        "200":
+          description: 销售报表数据
+
+  /api/v1/tenant/orgs:
+    get:
+      summary: 组织列表
+      tags: [Tenant]
+      responses:
+        "200":
+          description: 组织列表
+
+  /api/v1/transport/carriers:
+    get:
+      summary: 物流商列表
+      tags: [Transport]
+      responses:
+        "200":
+          description: 物流商列表
+
+  /api/v1/file/upload:
+    post:
+      summary: 文件上传
+      tags: [File]
+      responses:
+        "200":
+          description: 上传结果
+
+  /api/v1/notification/list:
+    get:
+      summary: 通知列表
+      tags: [Notification]
+      responses:
+        "200":
+          description: 通知列表
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT 认证令牌。通过 /api/v1/iam/login 获取。
+        请求头: Authorization: Bearer <token>
+
+  schemas:
+    HealthResponse:
+      type: object
+      properties:
+        status: { type: string, example: "ok" }
+        service: { type: string, example: "api-gateway" }
+
+    LoginRequest:
+      type: object
+      required: [tenant_id, username, password]
+      properties:
+        tenant_id: { type: string, example: "default" }
+        username: { type: string, example: "admin" }
+        password: { type: string, example: "admin123" }
+
+    LoginResponse:
+      type: object
+      properties:
+        code: { type: integer, example: 0 }
+        message: { type: string, example: "ok" }
+        data:
+          type: object
+          properties:
+            access_token: { type: string }
+            refresh_token: { type: string }
+            token_type: { type: string, example: "Bearer" }
+            expires_in: { type: integer, example: 7200 }
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token: { type: string }
+
+    CheckPermissionRequest:
+      type: object
+      required: [user_id, tenant_id, permission_code]
+      properties:
+        user_id: { type: string }
+        tenant_id: { type: string }
+        permission_code: { type: string }
+
+    ErrorResponse:
+      type: object
+      properties:
+        code: { type: integer }
+        message: { type: string }
+
+tags:
+  - name: System
+    description: 系统端点
+  - name: IAM
+    description: 认证与权限管理
+  - name: Order
+    description: 订单管理
+  - name: Warehouse
+    description: 仓储管理
+  - name: Inventory
+    description: 库存管理
+  - name: Product
+    description: 商品管理
+  - name: Channel
+    description: 渠道管理
+  - name: Purchase
+    description: 采购管理
+  - name: Finance
+    description: 财务管理
+  - name: Report
+    description: 报表服务
+  - name: Tenant
+    description: 租户组织
+  - name: Transport
+    description: 物流管理
+  - name: File
+    description: 文件服务
+  - name: Notification
+    description: 通知服务

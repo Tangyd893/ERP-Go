@@ -1,4 +1,3 @@
-import type { App } from "vue";
 import ProTable from "./components/ProTable.vue";
 import ProForm from "./components/ProForm.vue";
 import FileUpload from "./components/FileUpload.vue";
@@ -13,10 +12,5 @@ export { ProTable, ProForm, FileUpload, ErrorState };
 
 export { default as apiClient } from "./api";
 export { isDemo } from "./demo";
+export { useApiState, useApiPage } from "./composables/useApiState";
 export * from "./types";
-
-declare const _default: {
-  install: (app: App) => void;
-};
-
-export default _default;

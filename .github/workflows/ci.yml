@@ -37,9 +37,9 @@ jobs:
       - name: Verify (Go + frontend)
         run: bash scripts/verify.sh
 
-      - name: Go test with coverage
+      - name: Go test with coverage (unit)
         run: |
-          go test -C backend ./... -coverprofile=coverage.out -covermode=atomic
+          go test -C backend ./... -short -coverprofile=coverage.out -covermode=atomic
           go tool cover -func=coverage.out | tail -1
 
       - name: SonarCloud Scan
@@ -51,6 +51,7 @@ jobs:
             -Dsonar.projectKey=Tangyd893_ERP-Go
             -Dsonar.organization=tangyd893
             -Dsonar.exclusions=**/node_modules/**,**/.cache/**,**/migrations/**,backend/scripts/genhash/**,docs/archive/**
+            -Dsonar.security.exclusions=**/migrations/**
             -Dsonar.issue.ignore.multicriteria=e1,e2
             -Dsonar.issue.ignore.multicriteria.e1.ruleKey=secrets:S8215
             -Dsonar.issue.ignore.multicriteria.e1.resourceKey=**/services/iam-service/migrations/002_seed_dev_admin.sql
@@ -62,3 +63,127 @@ jobs:
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: bash scripts/sonar-review-hotspots.sh
+
+  integration:
+    runs-on: ubuntu-latest
+    needs: verify
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: erp
+          POSTGRES_PASSWORD: erp123
+          POSTGRES_DB: erp_go
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Run integration tests
+        env:
+          TEST_DATABASE_URL: "postgres://erp:erp123@localhost:5432/erp_go?sslmode=disable"
+        run: go test -C backend ./... -tags=integration -count=1 -v
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: verify
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: erp
+          POSTGRES_PASSWORD: erp123
+          POSTGRES_DB: erp_go
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      rabbitmq:
+        image: rabbitmq:3.13-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: admin
+          RABBITMQ_DEFAULT_PASS: admin123
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd "rabbitmqctl status"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: "postgres://erp:erp123@localhost:5432/erp_go?sslmode=disable"
+        run: |
+          for svc in iam-service tenant-service product-service channel-service order-service inventory-service warehouse-service; do
+            for f in backend/services/$svc/migrations/*.sql; do
+              psql "$DATABASE_URL" -f "$f" -v ON_ERROR_STOP=1
+            done
+          done
+
+      - name: Start backend services
+        env:
+          DATABASE_HOST: localhost
+          DATABASE_PORT: "5432"
+          DATABASE_USER: erp
+          DATABASE_PASSWORD: erp123
+          DATABASE_DBNAME: erp_go
+          JWT_SECRET: "erp-go-dev-secret-change-in-production"
+          RABBITMQ_URL: "amqp://admin:admin123@localhost:5672/"
+        run: |
+          go run ./backend/services/iam-service/cmd/server &
+          go run ./backend/services/inventory-service/cmd/server &
+          go run ./backend/services/warehouse-service/cmd/server &
+          go run ./backend/services/order-service/cmd/server &
+          go run ./backend/gateway/cmd/server &
+          sleep 8
+          curl -s http://localhost:8080/health || echo "Gateway not ready yet"
+
+      - name: Run Playwright E2E smoke tests
+        run: npx playwright test --config testing/e2e/playwright.config.ts
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: testing/e2e/playwright-report/
+          retention-days: 7

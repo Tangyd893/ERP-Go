@@ -8,13 +8,24 @@ import {
   isDuplicateError,
   isNetworkError,
 } from "@/stores/warehouse";
+import ScanInput from "@/components/ScanInput.vue";
+import ScanFeedback from "@/components/ScanFeedback.vue";
 
 const router = useRouter();
 const store = useWarehouseStore();
 
-const scanInput = ref("");
+const scanValue = ref("");
 const scanning = ref(false);
-const scanInputRef = ref<HTMLInputElement | null>(null);
+const scanInputRef = ref<InstanceType<typeof ScanInput> | null>(null);
+const showHistory = ref(false);
+
+function vibrate(pattern: number | number[] = 50) {
+  try {
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      (navigator as Navigator).vibrate(pattern);
+    }
+  } catch { /* 不支持静默忽略 */ }
+}
 
 onMounted(async () => {
   await store.fetchOutbounds();
@@ -25,18 +36,12 @@ const checkingOutbounds = computed(() =>
   store.outbounds.filter((o) => o.status === "picked" || o.status === "picking")
 );
 
-const recentChecks = computed(() =>
-  store.scanHistory.filter((r) => r.type === "check").slice(0, 10)
-);
-
 function findOutbound(value: string) {
   const v = value.trim().toUpperCase();
   if (!v) return null;
   return (
     checkingOutbounds.value.find(
-      (o) =>
-        o.order_no?.toUpperCase() === v ||
-        o.id?.toUpperCase() === v
+      (o) => o.order_no?.toUpperCase() === v || o.id?.toUpperCase() === v
     ) || null
   );
 }
@@ -47,10 +52,12 @@ async function handleCheckClick(outboundId: string, label: string) {
   try {
     await store.checkScan(outboundId, "", 1, label);
     ElMessage.success(`✓ ${label} 复核完成`);
+    vibrate(80);
     await store.fetchOutbounds();
   } catch (e: unknown) {
     if (isDuplicateError(e)) {
       ElMessage.info(`已复核（重复扫描）: ${label}`);
+      vibrate([30, 50, 30]);
       await store.fetchOutbounds();
     } else if (isNetworkError(e)) {
       ElMessage.error("网络不可用，请检查连接后重试");
@@ -62,14 +69,13 @@ async function handleCheckClick(outboundId: string, label: string) {
   }
 }
 
-async function handleScan() {
-  const value = scanInput.value.trim();
-  if (!value || scanning.value) return;
+async function handleScan(value: string) {
+  if (scanning.value) return;
 
   const ob = findOutbound(value);
   if (!ob) {
     ElMessage.warning(`未找到匹配的待复核出库单: ${value}`);
-    scanInput.value = "";
+    vibrate([80, 100, 80, 100, 200]);
     scanInputRef.value?.focus();
     return;
   }
@@ -79,12 +85,12 @@ async function handleScan() {
   try {
     await store.checkScan(ob.id, "", 1, label);
     ElMessage.success(`✓ ${label} 复核完成`);
-    scanInput.value = "";
+    vibrate(80);
     await store.fetchOutbounds();
   } catch (e: unknown) {
     if (isDuplicateError(e)) {
       ElMessage.info(`已复核（重复扫描）: ${label}`);
-      scanInput.value = "";
+      vibrate([30, 50, 30]);
       await store.fetchOutbounds();
     } else if (isNetworkError(e)) {
       ElMessage.error("网络不可用，请检查连接后重试");
@@ -99,62 +105,49 @@ async function handleScan() {
 </script>
 
 <template>
-  <div style="padding: 16px; max-width: 480px; margin: 0 auto">
+  <div class="check-scan">
     <!-- Header -->
-    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px">
+    <div class="check-scan__header">
       <el-page-header @back="router.push('/')" content="复核扫码" />
-      <el-tag :type="store.online ? 'success' : 'danger'" size="small" effect="dark">
-        {{ store.online ? "在线" : "离线" }}
-      </el-tag>
+      <div class="check-scan__header-right">
+        <el-badge :value="store.scanHistory.filter(r => r.type === 'check').length" :hidden="store.scanHistory.length === 0">
+          <el-button size="small" text @click="showHistory = true">记录</el-button>
+        </el-badge>
+        <el-tag :type="store.online ? 'success' : 'danger'" size="small" effect="dark">
+          {{ store.online ? "在线" : "离线" }}
+        </el-tag>
+      </div>
     </div>
 
     <!-- Scan Input -->
-    <el-card style="margin-bottom: 12px">
-      <div style="font-size: 13px; color: #909399; margin-bottom: 8px">
-        扫描出库单条码 / 输入订单号
-      </div>
-      <el-input
-        ref="scanInputRef"
-        v-model="scanInput"
-        placeholder="扫描或输入订单号…"
-        size="large"
-        clearable
-        :disabled="scanning"
-        @keyup.enter="handleScan"
-      >
-        <template #append>
-          <el-button
-            :loading="scanning"
-            :disabled="!scanInput.trim()"
-            @click="handleScan"
-          >
-            确认
-          </el-button>
-        </template>
-      </el-input>
-    </el-card>
-
-    <!-- Pending Check Tasks -->
-    <el-empty
-      v-if="checkingOutbounds.length === 0"
-      description="暂无待复核出库单"
+    <ScanInput
+      ref="scanInputRef"
+      v-model="scanValue"
+      hint="扫描出库单条码 / 输入订单号"
+      :disabled="scanning"
+      @scan="handleScan"
     />
 
+    <!-- Empty -->
+    <el-empty v-if="checkingOutbounds.length === 0" description="暂无待复核出库单" />
+
+    <!-- Task Cards -->
     <el-card
       v-for="ob in checkingOutbounds"
       :key="ob.id"
-      style="margin-bottom: 8px"
+      class="check-scan__card"
       :body-style="{ padding: '12px 16px' }"
     >
-      <div style="display: flex; justify-content: space-between; align-items: center">
-        <div>
-          <div style="font-weight: 500">{{ ob.order_no }}</div>
-          <div style="font-size: 12px; color: #909399">{{ ob.id }}</div>
+      <div class="check-scan__row">
+        <div class="check-scan__info">
+          <div class="check-scan__name">{{ ob.order_no }}</div>
+          <div class="check-scan__id">{{ ob.id }}</div>
         </div>
         <el-button
           type="warning"
           size="small"
           :loading="scanning"
+          class="check-scan__btn"
           @click="handleCheckClick(ob.id, ob.order_no || ob.id)"
         >
           复核确认
@@ -162,24 +155,57 @@ async function handleScan() {
       </div>
     </el-card>
 
-    <!-- Recent Scan History -->
-    <div v-if="recentChecks.length > 0" style="margin-top: 16px">
-      <div style="font-size: 13px; color: #909399; margin-bottom: 8px">
-        最近复核记录
-      </div>
-      <div
-        v-for="r in recentChecks"
-        :key="r.id"
-        style="font-size: 12px; padding: 4px 0; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between"
-      >
-        <span>
-          <span :style="{ color: r.success ? '#67c23a' : '#f56c6c' }">
-            {{ r.success ? "✓" : "✗" }}
-          </span>
-          {{ r.targetLabel }}
-        </span>
-        <span style="color: #c0c4cc">{{ new Date(r.time).toLocaleTimeString() }}</span>
-      </div>
-    </div>
+    <!-- History Drawer -->
+    <ScanFeedback
+      v-if="showHistory"
+      type="check"
+      @close="showHistory = false"
+    />
   </div>
 </template>
+
+<style scoped>
+.check-scan__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.check-scan__header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.check-scan__card {
+  margin-bottom: 8px;
+}
+
+.check-scan__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.check-scan__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.check-scan__name {
+  font-weight: 500;
+  font-size: 15px;
+}
+
+.check-scan__id {
+  font-size: 12px;
+  color: var(--pda-text-secondary, #909399);
+  margin-top: 2px;
+}
+
+.check-scan__btn {
+  flex-shrink: 0;
+  min-height: var(--pda-touch-min, 44px);
+}
+</style>

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -20,7 +21,15 @@ import (
 func main() {
 	jwtSecret := os.Getenv("JWT_SECRET")
 	if jwtSecret == "" {
-		jwtSecret = "erp-go-dev-secret-change-in-production"
+		jwtSecret = config.DefaultJWTSecret
+	}
+
+	// T-609: 生产环境拒绝默认 JWT Secret
+	cfg, _ := config.Load("")
+	if config.IsProduction() {
+		if err := config.ValidateProduction(jwtSecret, cfg.Database.Password); err != nil {
+			panic(fmt.Sprintf("生产环境安全校验失败: %v", err))
+		}
 	}
 
 	var (
@@ -60,13 +69,16 @@ func main() {
 				log.Info("IAM 服务启动，数据库模式")
 				return nil
 			}
-			api := engine.Group("/api/v1/iam")
-			api.POST("/login", notImplYet)
-			api.POST("/refresh", notImplYet)
-			api.GET("/users", notImplYet)
-			api.GET("/roles", notImplYet)
-			api.GET("/permissions", notImplYet)
-			log.Info("IAM 服务启动，占位模式")
+			// T-610: 非开发环境 db==nil 由 bootstrap initDB Fatal 处理，此处仅开发环境走占位
+			if config.IsDevelopment() {
+				api := engine.Group("/api/v1/iam")
+				api.POST("/login", notImplYet)
+				api.POST("/refresh", notImplYet)
+				api.GET("/users", notImplYet)
+				api.GET("/roles", notImplYet)
+				api.GET("/permissions", notImplYet)
+				log.Info("IAM 服务启动，占位模式")
+			}
 			return nil
 		},
 	})

@@ -1,9 +1,19 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { ProTable } from "@erp/shared";
+import { ref, onMounted } from "vue";
+import { ProTable, apiClient } from "@erp/shared";
 
-const suppliers = ref([{ id: "1", name: "纺织品供应商A", code: "SUP-001", contact: "张三", phone: "13800138001", status: "active" }]);
-const orders = ref([{ id: "1", order_no: "PO-20260521-001", supplier_name: "纺织品供应商A", status: "approved", total_amount: 5000, currency: "USD", created_at: "2026-05-21" }]);
+interface Supplier {
+  id: string; name: string; code: string; contact: string; phone: string; status: string;
+}
+interface PurchaseOrder {
+  id: string; order_no: string; supplier_name: string; status: string;
+  total_amount: number; currency: string; created_at: string;
+}
+
+const suppliers = ref<Supplier[]>([]);
+const orders = ref<PurchaseOrder[]>([]);
+const loading = ref(false);
+const error = ref("");
 
 const supplierColumns = [
   { prop: "name", label: "名称", width: 180 },
@@ -29,6 +39,26 @@ const statusMap: Record<string, { type: string; label: string }> = {
   ordered: { type: "success", label: "已下单" },
   completed: { type: "success", label: "已完成" },
 };
+
+onMounted(async () => {
+  loading.value = true;
+  try {
+    const [supRes, ordRes] = await Promise.allSettled([
+      apiClient.get("/purchase/suppliers", { params: { page: 1, page_size: 100 } }),
+      apiClient.get("/purchase/orders", { params: { page: 1, page_size: 100 } }),
+    ]);
+    if (supRes.status === "fulfilled") {
+      suppliers.value = supRes.value.data?.data?.list ?? [];
+    }
+    if (ordRes.status === "fulfilled") {
+      orders.value = ordRes.value.data?.data?.list ?? [];
+    }
+  } catch {
+    error.value = "加载采购数据失败";
+  } finally {
+    loading.value = false;
+  }
+});
 </script>
 
 <template>
@@ -40,6 +70,8 @@ const statusMap: Record<string, { type: string; label: string }> = {
       <ProTable
         :columns="supplierColumns"
         :data="suppliers"
+        :loading="loading"
+        :error="error"
         :total="suppliers.length"
         :page-size="suppliers.length"
       >
@@ -57,15 +89,14 @@ const statusMap: Record<string, { type: string; label: string }> = {
       <ProTable
         :columns="orderColumns"
         :data="orders"
+        :loading="loading"
         :total="orders.length"
         :page-size="orders.length"
       >
         <template #status="{ row }">
           <el-tag :type="statusMap[row.status]?.type || 'info'" size="small">{{ statusMap[row.status]?.label || row.status }}</el-tag>
         </template>
-        <template #total_amount="{ row }">
-          {{ row.currency }} {{ row.total_amount }}
-        </template>
+        <template #total_amount="{ row }">{{ row.currency }} {{ row.total_amount }}</template>
         <template #actions>
           <el-button type="primary" size="small">审核</el-button>
           <el-button type="success" size="small">收货</el-button>

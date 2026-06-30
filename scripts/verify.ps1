@@ -74,6 +74,7 @@ try {
             }
 
             Invoke-Check "npm run typecheck" { npm run typecheck }
+            Invoke-Check "npm run lint:ci" { npm run lint:ci }
             Invoke-Check "npm run build:admin" { npm run build:admin }
             Invoke-Check "npm run build:pda" { npm run build:pda }
             Invoke-Check "npm run build:dashboard" { npm run build:dashboard }

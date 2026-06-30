@@ -1,9 +1,21 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { ProTable } from "@erp/shared";
+import { ref, onMounted } from "vue";
+import { ProTable, apiClient } from "@erp/shared";
 
-const settlements = ref([{ id: "1", store: "美国站店铺A", period: "2026-05-01 ~ 2026-05-15", total_sales: 12500, commission: 1500, net_amount: 11000, status: "matched", currency: "USD" }]);
-const profits = ref([{ order_no: "AMZ-20260520-004", sale_amount: 12.99, purchase_cost: 5, shipping_cost: 3.5, commission: 1.95, total_cost: 10.45, gross_profit: 2.54, profit_margin: 19.6 }]);
+interface Settlement {
+  id: string; store: string; period: string; total_sales: number;
+  commission: number; net_amount: number; status: string; currency: string;
+}
+interface Profit {
+  order_no: string; sale_amount: number; purchase_cost: number;
+  shipping_cost: number; commission: number; total_cost: number;
+  gross_profit: number; profit_margin: number;
+}
+
+const settlements = ref<Settlement[]>([]);
+const profits = ref<Profit[]>([]);
+const loading = ref(false);
+const error = ref("");
 
 const settlementColumns = [
   { prop: "store", label: "店铺", width: 150 },
@@ -24,6 +36,26 @@ const profitColumns = [
   { prop: "gross_profit", label: "毛利", width: 80 },
   { prop: "profit_margin", label: "利润率", width: 80 },
 ];
+
+onMounted(async () => {
+  loading.value = true;
+  try {
+    const [settleRes, profitRes] = await Promise.allSettled([
+      apiClient.get("/finance/settlements", { params: { page: 1, page_size: 100 } }),
+      apiClient.get("/finance/profit", { params: { page: 1, page_size: 100 } }),
+    ]);
+    if (settleRes.status === "fulfilled") {
+      settlements.value = settleRes.value.data?.data?.list ?? [];
+    }
+    if (profitRes.status === "fulfilled") {
+      profits.value = profitRes.value.data?.data?.list ?? [];
+    }
+  } catch {
+    error.value = "加载财务数据失败";
+  } finally {
+    loading.value = false;
+  }
+});
 </script>
 
 <template>
@@ -38,6 +70,8 @@ const profitColumns = [
       <ProTable
         :columns="settlementColumns"
         :data="settlements"
+        :loading="loading"
+        :error="error"
         :total="settlements.length"
         :page-size="settlements.length"
       >
@@ -57,6 +91,7 @@ const profitColumns = [
       <ProTable
         :columns="profitColumns"
         :data="profits"
+        :loading="loading"
         :total="profits.length"
         :page-size="profits.length"
       >

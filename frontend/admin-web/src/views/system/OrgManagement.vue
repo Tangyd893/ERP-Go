@@ -1,35 +1,62 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, onMounted } from "vue";
+import { apiClient } from "@erp/shared";
 
-const orgTree = ref([
-  {
-    id: "1",
-    name: "总公司",
-    code: "headquarters",
-    children: [
-      { id: "2", name: "销售部", code: "sales" },
-      { id: "3", name: "仓储部", code: "warehouse" },
-      { id: "4", name: "财务部", code: "finance" },
-    ],
-  },
-]);
+interface OrgNode {
+  id: string; name: string; code: string; children?: OrgNode[];
+}
 
-const defaultExpandedKeys = ref(["1"]);
+const orgTree = ref<OrgNode[]>([]);
+const loading = ref(false);
+const error = ref("");
+
+const defaultExpandedKeys = ref<string[]>([]);
 
 const treeProps = {
   children: "children",
   label: "name",
 };
+
+onMounted(async () => {
+  loading.value = true;
+  try {
+    const res = await apiClient.get("/tenant/organizations");
+    const list = res.data?.data?.list ?? res.data?.data ?? [];
+    orgTree.value = list;
+    if (list.length > 0) {
+      defaultExpandedKeys.value = [list[0].id];
+    }
+  } catch {
+    error.value = "加载组织架构失败";
+  } finally {
+    loading.value = false;
+  }
+});
 </script>
 
 <template>
   <div>
-    <el-row :gutter="16">
+    <!-- 加载/错误态 -->
+    <div v-if="loading" style="text-align: center; padding: 48px 0">
+      <el-skeleton :rows="6" animated />
+    </div>
+    <el-alert
+      v-else-if="error"
+      :title="error"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: 16px"
+    />
+    <el-empty v-else-if="orgTree.length === 0" description="暂无组织架构数据，请先创建组织">
+      <el-button type="primary" disabled>新建组织</el-button>
+    </el-empty>
+
+    <!-- 正常 -->
+    <el-row v-else :gutter="16">
       <el-col :span="8">
         <el-card>
-          <template #header>
-            <span>组织架构</span>
-          </template>
+          <template #header><span>组织架构</span></template>
           <el-tree
             :data="orgTree"
             :props="treeProps"

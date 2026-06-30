@@ -18,10 +18,21 @@ func NewReportHandler(appService *app.ReportAppService) *ReportHandler {
 }
 
 func (h *ReportHandler) RegisterRoutes(router *gin.RouterGroup) {
+	router.GET("/dashboard", h.dashboard)
 	router.GET("/sales", h.salesReport)
 	router.GET("/inventory-turnover", h.inventoryTurnover)
 	router.GET("/warehouse-efficiency", h.warehouseEfficiency)
 	router.GET("/profit-summary", h.profitSummary)
+}
+
+func (h *ReportHandler) dashboard(c *gin.Context) {
+	tenantID := c.GetString("tenant_id")
+	data, err := h.appService.GetDashboard(c.Request.Context(), tenantID)
+	if err != nil {
+		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, "查询看板数据失败: "+err.Error())
+		return
+	}
+	response.Success(c, data)
 }
 
 func (h *ReportHandler) salesReport(c *gin.Context) {

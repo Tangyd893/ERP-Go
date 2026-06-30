@@ -16,6 +16,7 @@ interface Props {
   columns: ColumnDef[];
   data: Record<string, unknown>[];
   loading?: boolean;
+  error?: string;
   total?: number;
   pageSize?: number;
   page?: number;
@@ -23,6 +24,7 @@ interface Props {
 
 const props = withDefaults(defineProps<Props>(), {
   loading: false,
+  error: "",
   total: 0,
   pageSize: 20,
   page: 1,
@@ -44,7 +46,27 @@ const totalPages = computed(() => Math.ceil(props.total / props.pageSize));
       <slot name="toolbar" />
     </div>
 
+    <!-- 错误态 -->
+    <el-alert
+      v-if="error"
+      :title="error"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: 16px"
+    >
+      <template #default>
+        <el-button size="small" text @click="emit('refresh')">重试</el-button>
+      </template>
+    </el-alert>
+
+    <!-- 空态（无错误且有 slot#empty 时使用自定义空态） -->
+    <el-empty v-if="!loading && !error && data.length === 0 && $slots.empty" :description="$slots.empty">
+      <slot name="empty" />
+    </el-empty>
+
     <el-table
+      v-if="!error && (data.length > 0 || !$slots.empty)"
       :data="data"
       v-loading="loading"
       stripe

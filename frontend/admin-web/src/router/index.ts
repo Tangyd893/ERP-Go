@@ -125,7 +125,7 @@ const router = createRouter({
 });
 
 router.beforeEach((to, _from, next) => {
-  const token = localStorage.getItem("access_token");
+  const token = localStorage.getItem("access_token")?.trim();
   if (!token && to.path !== "/login") {
     next("/login");
   } else {

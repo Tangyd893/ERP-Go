@@ -118,6 +118,9 @@ func initDB(opts Options, cfg *config.Config, log logger.Logger) *gorm.DB {
 	}
 	database, err := opts.InitDB(cfg.Database, log)
 	if err != nil {
+		if config.IsProduction() {
+			log.Fatalf("数据库连接失败，生产环境不允许降级: %v", err)
+		}
 		log.Warnf("数据库连接失败，使用占位模式: %v", err)
 		return nil
 	}
@@ -125,14 +128,19 @@ func initDB(opts Options, cfg *config.Config, log logger.Logger) *gorm.DB {
 	return database
 }
 
-// registerHealth 注册 /health 端点，db 为 nil 时返回 degraded
+// registerHealth 注册 /health 端点，db 为 nil 时返回 degraded；
+// 非开发环境 degraded 时返回 503 以便 K8s readiness probe 失败
 func registerHealth(engine *gin.Engine, name string, db *gorm.DB) {
 	engine.GET("/health", func(c *gin.Context) {
 		status := "ok"
+		httpStatus := http.StatusOK
 		if db == nil {
 			status = "degraded"
+			if !config.IsDevelopment() {
+				httpStatus = http.StatusServiceUnavailable
+			}
 		}
-		c.JSON(http.StatusOK, gin.H{
+		c.JSON(httpStatus, gin.H{
 			"status":  status,
 			"service": name,
 			"db":      db != nil,
