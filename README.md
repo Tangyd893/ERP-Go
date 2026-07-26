@@ -1,162 +1,106 @@
 # ERP-Go
 
-中文说明
+> [English](README.en.md)
 
-ERP-Go 是一个基于 Go 微服务架构的跨境电商 ERP 系统项目，面向跨境卖家、品牌方和海外仓团队，覆盖商品、渠道、订单、库存、WMS 仓储、TMS 物流、采购、财务、报表和系统治理等业务域。
+ERP-Go 是一个基于 Go 微服务架构的跨境电商 ERP 系统，面向跨境卖家、品牌方和海外仓团队，覆盖商品、渠道、订单、库存、WMS 仓储、TMS 物流、采购、财务、报表和系统治理等业务域。
 
-一句话定位：
+**一句话定位：** 面向跨境电商卖家、品牌方和海外仓团队的一体化微服务 ERP 平台。
 
-> 面向跨境电商卖家、品牌方和海外仓团队的一体化微服务 ERP 平台。
-
-长期方向：
-
-> 让跨境团队围绕“订单履约”和“库存资金账”完成商品管理、平台销售、采购补货、仓储作业、物流发运、财务核算和经营分析，而不是在平台后台、仓库系统、物流系统和表格之间反复搬运数据。
+**长期方向：** 让跨境团队围绕「订单履约」和「库存资金账」完成商品管理、平台销售、采购补货、仓储作业、物流发运、财务核算和经营分析，而不是在平台后台、仓库系统、物流系统和表格之间反复搬运数据。
 
 仓库地址：[https://github.com/Tangyd893/ERP-Go.git](https://github.com/Tangyd893/ERP-Go.git)
 
-## 当前状态
+## 核心能力
 
-本节基于 2026-06-30 对仓库的检查更新。详细缺口与任务优先级见 [docs/待办清单.md](docs/待办清单.md)。
-
-### 状态快照
-
-- Git 状态：位于 `main`，跟踪 `origin/main`。
-- 后端：通过 `make test` / `.\scripts\verify.ps1 -SkipFrontend` 通过（含 IAM/Order/Gateway **httptest**），`go vet`、`go build` 通过。GOCACHE/GOMODCACHE 固定到 `.cache/`。
-- 测试覆盖：13 服务 domain 单测、P4 workflow、Gateway 契约测试、middleware、Order app、outbox 单测、inventory/order repository 集成测试（testcontainers）；IAM/Order HTTP handler 测试（T-613/T-614）。
-- 事件：Order 服务 DB 就绪时启动 **进程内 Outbox 轮询** 与 P4 出库编排；RabbitMQ Consumer 已接入（`outbound.shipped` 消费 + 死信/重试 API）；`HandleInboundReceived` 采购入库已接线。详见待办清单「事件处理现状」表。
-- 前端：`admin-web`（**18** 视图）、`warehouse-pda`（**8** 视图）、`dashboard-web`（ECharts 看板）的 typecheck 与 build 已通过（Node.js v24.15.0 / npm 11.12.1）。PDA 已接入 Gateway token 认证、打包/称重/扫码页面完整。
-- 数据库迁移：根级迁移已标注为只读归档，服务级 `backend/services/*/migrations` 为业务表唯一事实源（**12/13**，`report-service` 暂无 migration），outbox 在根级单独维护。
-- CI：GitHub Actions 执行 `scripts/verify.sh`（Go vet/test/build + 前端 typecheck + **lint:ci** + 三端 build）及 SonarCloud 扫描。
-
-### 已完成
-
-- P0 工程底座：`backend`、`frontend`、`docker`、`testing`、`docs` 顶层目录，Go 单模块 monorepo，npm workspaces。
-- `backend/shared` 公共组件：配置、日志、错误码、响应、数据库连接、中间件、分页、校验、Outbox/Inbox、可观测性字段。
-- API Gateway：健康检查、JWT 鉴权、请求 ID/追踪 ID/租户/用户上下文中间件，覆盖全部 13 个服务的代理路由。
-- 13 个后端服务均有 domain/app/HTTP；12/13 有 repository（`report-service` 为无仓储聚合）。**`ENVIRONMENT=development`（或未设置）** 且 DB 未就绪时部分服务降级占位；**staging/production** 下 DB 连接失败将 Fatal，health 返回 503（T-610）。
-- 全部 13 个服务的 domain 包均有单元测试（180 个测试函数）。
-- IAM Service：登录、刷新 Token、用户、角色、权限、审计已连线。
-- Order Service：状态机、事件驱动（Outbox/Inbox）、P4 履约流程（订单审核→库存锁定→创建出库单→出库扣减→订单发货）、补偿记录。
-- Inventory Service：仓储已从内存模拟切换到数据库，支持事务行锁和幂等控制。
-- RabbitMQ 事件发布：Order Service 优先使用 RabbitMQ 发布器，不可用时自动降级为日志发布。
-- 事件驱动：`shared/events` 20+ 业务事件类型，`shared/outbox` 完整实现 PG 存储/RabbitMQ 发布消费/重试/死信/Inbox 幂等，`shared/workflows` P4 流程协调器+采购入库流程。
-- Frontend：`admin-web` 18 个视图、`warehouse-pda` 8 个视图、`dashboard-web` ECharts 看板；多数业务页已接 Store，仅通知中心在 API 失败时回退 mock 数据。
-- Frontend 共享组件：ProTable、ProForm、FileUpload 和 API client（自动注入 JWT/租户）。
-- Docker Compose 开发环境：PostgreSQL、Redis、RabbitMQ、MinIO、OpenSearch、Prometheus、Grafana、Loki、Jaeger。
-- 架构设计文档、ADR 模板、测试目录骨架已建立。
-- Makefile：GOCACHE/GOMODCACHE 已固定到仓库内，无 Unix 专用命令依赖。
-
-### 尚未完成
-
-- 多服务 repository testcontainers、跨 tenant、P4 全链路 HTTP 集成测（T-616~T-618）。
-- gRPC 代码生成和服务间调用方案尚未落地。
-- 端到端烟测、性能测试仍需补充。
-- `golang-migrate` 试点、CI 镜像漏洞扫描（T-623、T-625）。
-- Quality Gate 仍 Red：1 BLOCKER（`secrets:S8215`）+ 1 Hotspot 待审（详见 [待办清单](docs/待办清单.md) §4、[sonarcloud-report.md](docs/sonarcloud-report.md)）。
-
-## 产品路线
-
-当前推荐路线来自 [实施路线与工程规范](docs/实施路线与工程规范.md)：
-
-```text
-先打透订单履约闭环
-再补采购入库和财务结算闭环
-再做智能补货、智能分仓、BI 和多区域部署
-```
-
-近期最重要的闭环：
-
-1. 店铺授权 -> 平台订单导入 -> 订单审核。
-2. 订单审核 -> 库存锁定 -> WMS 出库任务。
-3. 仓库拣货 -> 复核打包 -> TMS 面单 -> 仓库出库。
-4. 仓库出库 -> 库存扣减 -> 订单发货 -> 平台回传。
-5. 采购单 -> 到货通知 -> WMS 入库 -> 库存增加。
-6. 平台结算 -> 成本归集 -> 订单利润 -> 经营报表。
+- **多租户治理** — 用户认证、租户与组织、角色权限、操作审计
+- **商品与渠道** — SPU/SKU 管理、平台 SKU 映射、店铺授权、平台订单导入
+- **订单履约** — 销售订单状态机、审核、库存锁定、WMS 出库、发货与平台回传
+- **仓储作业** — 入库、拣货、复核、打包、出库；管理后台与 PDA 扫码终端
+- **供应链与财务** — 采购单、到货入库、应收应付、成本归集与利润报表
+- **平台能力** — API Gateway 统一鉴权、Outbox/Inbox 事件驱动、可观测性基础设施
 
 ## 架构概览
 
 ```text
 frontend
-  ├─ ERP 管理后台
-  ├─ WMS PDA / H5
-  └─ 经营看板
+  ├─ ERP 管理后台 (admin-web)
+  ├─ WMS PDA / H5 (warehouse-pda)
+  └─ 经营看板 (dashboard-web)
         |
         v
 API Gateway
         |
-        +-- iam-service             认证权限服务
-        +-- tenant-service          租户组织服务
-        +-- product-service         商品服务
-        +-- channel-service         渠道服务
-        +-- order-service           订单服务
-        +-- inventory-service       库存服务
-        +-- warehouse-service       WMS 仓储服务
-        +-- transport-service       TMS 物流服务
-        +-- purchase-service        采购服务
-        +-- finance-service         财务服务
-        +-- report-service          报表服务
-        +-- file-service            文件服务
-        +-- notification-service    通知服务
+        +-- iam-service             认证权限
+        +-- tenant-service          租户组织
+        +-- product-service         商品
+        +-- channel-service         渠道
+        +-- order-service           订单
+        +-- inventory-service       库存
+        +-- warehouse-service       WMS 仓储
+        +-- transport-service       TMS 物流
+        +-- purchase-service        采购
+        +-- finance-service         财务
+        +-- report-service          报表
+        +-- file-service            文件
+        +-- notification-service    通知
 
 PostgreSQL | Redis | RabbitMQ | MinIO | OpenSearch
 Prometheus | Grafana | Loki | Jaeger
 ```
 
-核心设计原则：
+**设计原则：**
 
-- 业务闭环优先于服务数量。
-- 每个服务拥有独立业务边界和数据所有权。
-- 控制器只做协议转换，业务规则放在领域对象和应用服务中。
-- 同步调用用于查询和低频命令，跨服务副作用优先事件化。
-- 库存和财务不能只更新余额，必须保留流水和对账能力。
-- 平台、物流商、海外仓、支付、税务能力必须通过适配器隔离。
-- 新服务必须有契约、测试、指标、日志、追踪和可运维入口。
+- 业务闭环优先于服务数量；每个服务拥有独立业务边界和数据所有权
+- 跨服务副作用优先事件化；库存与财务必须保留流水和对账能力
+- 平台、物流商、海外仓等外部系统通过适配器隔离
+
+事件驱动与跨服务协作详见 [接口与事件设计](docs/接口与事件设计.md)。
+
+## 微服务职责
+
+| 服务 | 职责 |
+|------|------|
+| API Gateway | 统一入口、JWT 鉴权、路由转发、追踪上下文 |
+| IAM Service | 用户、角色、权限、登录、审计 |
+| Tenant Service | 租户、组织、部门、岗位 |
+| Product Service | SPU、SKU、平台 SKU 映射 |
+| Channel Service | 店铺授权、平台同步、订单导入 |
+| Order Service | 销售订单、状态机、审核、异常处理 |
+| Inventory Service | 库存余额、锁定、释放、扣减、流水 |
+| Warehouse Service | 入库、上架、拣货、复核、打包、出库 |
+| Transport Service | 物流商、物流规则、面单、发运、轨迹 |
+| Purchase Service | 供应商、采购单、到货、质检、入库 |
+| Finance Service | 应收应付、结算、成本、利润、流水 |
+| Report Service | 销售、库存、仓储、利润报表 |
+| File Service | 商品图片、面单、发票、导入导出文件 |
+| Notification Service | 邮件、短信、站内信、Webhook、告警 |
 
 ## 技术栈
 
 | 层级 | 技术 |
 |------|------|
 | 后端 | Go 1.25 + Gin + GORM |
-| 网关 | Gin API Gateway、统一鉴权入口、反向代理 |
+| 网关 | Gin API Gateway、统一鉴权、反向代理 |
 | 数据库 | PostgreSQL |
 | 缓存 | Redis |
-| 异步事件 | RabbitMQ，Outbox/Inbox 作为可靠消息基础 |
-| 对象存储 | MinIO，生产可对接 S3 兼容存储 |
-| 搜索分析 | OpenSearch，ClickHouse 作为后续分析库预留 |
-| 前端 | Vue 3 + TypeScript + Vite + Pinia + Vue Router + Element Plus |
+| 异步事件 | RabbitMQ，Outbox/Inbox 可靠消息 |
+| 对象存储 | MinIO（生产可对接 S3 兼容存储） |
+| 搜索分析 | OpenSearch |
+| 前端 | Vue 3 + TypeScript + Vite + Pinia + Element Plus |
 | 仓库终端 | Vue 3 H5 / PDA 扫码作业 |
-| 监控 | Prometheus、Grafana、Loki、Jaeger；OpenTelemetry/Tempo 待进一步落地 |
-| 中间件管理 | 本地统一由 `docker/` 目录管理 |
-| 生产部署 | Kubernetes，当前仍是骨架阶段 |
+| 监控 | Prometheus、Grafana、Loki、Jaeger |
+| 部署 | Docker Compose（本地）；Kubernetes / Helm（生产） |
 
-## 服务状态
-
-| 服务 | 设计职责 | 当前代码状态 |
-|------|----------|--------------|
-| API Gateway | 统一入口、鉴权、路由、追踪上下文 | 可编译运行；JWT 鉴权 + 13 个服务代理路由完整覆盖 |
-| IAM Service | 用户、角色、权限、登录、审计 | App + Repository + HTTP 已连线；数据库不可用时降级占位模式 |
-| Tenant Service | 租户、组织、部门、岗位 | Migration + Repository 完成；HTTP 占位接口 |
-| Product Service | SPU、SKU、平台 SKU 映射 | Migration + Domain 测试 + Repository 完成；HTTP 占位接口 |
-| Channel Service | 店铺授权、平台同步、订单导入任务 | Migration + Domain 测试 + Repository 完成；HTTP 占位接口 |
-| Order Service | 销售订单、状态机、审核、异常 | Migration + Domain 测试 + App 测试 + Repository 完成；事件驱动+Outbox/Inbox 已集成 |
-| Inventory Service | 库存余额、锁定、释放、扣减、流水 | Migration + Domain 测试 + Repository 完成；数据库仓储已接入 HTTP |
-| Warehouse Service | 入库、上架、拣货、复核、打包、出库 | Domain + Migration 完成；HTTP 占位接口 |
-| Transport Service | 物流商、物流规则、面单、发运、轨迹 | Domain 测试 + Migration 完成；HTTP 占位接口 |
-| Purchase Service | 供应商、采购单、到货、质检、入库 | Domain 测试 + Migration 完成；HTTP 占位接口 |
-| Finance Service | 应收应付、结算、成本、利润、流水 | Domain 测试 + Migration 完成；HTTP 占位接口 |
-| Report Service | 销售、库存、仓储、利润报表 | Domain 测试 + 服务骨架 + 占位 API |
-| File Service | 商品图片、面单、发票、导入导出文件 | Domain 测试 + Migration 完成；HTTP 占位接口 |
-| Notification Service | 邮件、短信、站内信、Webhook、告警 | Domain 测试 + Migration 完成；HTTP 占位接口 |
-
-## 项目目录
+## 仓库结构
 
 ```text
 ERP-Go/
   backend/    后端微服务、网关、共享组件、数据库迁移
   frontend/   ERP 管理后台、WMS PDA、经营看板、共享组件
   docker/     Docker Compose、Kubernetes、监控和部署配置
-  testing/    集成测试、契约测试、端到端测试、性能测试目录
-  docs/       架构设计、领域模型、接口事件、数据模型和工程规范文档
+  testing/    集成测试、契约测试、端到端测试、性能测试
+  docs/       架构设计、领域模型、接口事件、数据模型和工程规范
+  scripts/    本地启动、迁移、验证脚本
 ```
 
 ## 快速开始
@@ -166,8 +110,8 @@ ERP-Go/
 | 工具 | 建议版本 | 用途 |
 |------|----------|------|
 | Git | 2.40+ | 版本管理 |
-| Docker | 20.10+ | 本地基础设施和服务编排 |
-| Go | 1.25.0 | 后端服务开发 |
+| Docker | 20.10+ | 本地基础设施 |
+| Go | 1.25.0 | 后端开发 |
 | Node.js | 18.x+ | 前端开发 |
 | npm | 9.x+ | 前端包管理 |
 
@@ -178,152 +122,134 @@ git clone https://github.com/Tangyd893/ERP-Go.git
 cd ERP-Go
 ```
 
-### 阅读设计文档
+### 本地开发栈
 
-建议从 [文档索引](docs/文档索引.md) 开始：
-
-1. [项目架构设计](docs/项目架构设计.md)
-2. [技术栈与中间件管理规范](docs/技术栈与中间件管理规范.md)
-3. [领域模型设计](docs/领域模型设计.md)
-4. [微服务设计说明](docs/微服务设计说明.md)
-5. [接口与事件设计](docs/接口与事件设计.md)
-6. [数据模型设计](docs/数据模型设计.md)
-7. [项目里程碑与全流程待办清单](docs/项目里程碑与全流程待办清单.md)
-8. [实施路线与工程规范](docs/实施路线与工程规范.md)
-
-### 本地开发栈（一键启动）
+**Windows PowerShell：**
 
 ```powershell
-# Windows PowerShell
-.\scripts\dev-stack.ps1 all           # 中间件 + 迁移 + 核心服务
-.\scripts\dev-stack.ps1 infra          # 仅启动 Docker 中间件 + 迁移
-.\scripts\dev-stack.ps1 services       # 仅启动核心微服务
+.\scripts\dev-stack.ps1 all       # 中间件 + 迁移 + 核心服务
+.\scripts\dev-stack.ps1 infra       # 仅 Docker 中间件 + 迁移
+.\scripts\dev-stack.ps1 services    # 仅启动核心微服务
 ```
+
+**Linux / macOS / Git Bash：**
 
 ```bash
-# Linux / macOS / Git Bash
-make dev-stack                         # 全栈
-make dev-infra                         # 仅中间件 + 迁移
+make dev-stack    # 中间件 + 迁移 + 核心服务
+make dev-infra    # 仅中间件 + 迁移
+make dev-services # 仅核心微服务
 ```
 
-启动后，核心服务端口：
+`dev-stack` 默认启动 Gateway、IAM、Order、Inventory、Warehouse。服务日志写入 `.cache/logs/`。
+
+**健康检查：**
+
+```bash
+curl http://localhost:8080/health
+```
+
+### 默认端口
 
 | 服务 | 端口 |
-| --- | ---: |
+|------|-----:|
 | API Gateway | 8080 |
 | IAM Service | 8081 |
+| Tenant Service | 8082 |
+| Product Service | 8083 |
+| Channel Service | 8084 |
 | Order Service | 8085 |
 | Inventory Service | 8086 |
 | Warehouse Service | 8087 |
+| Transport Service | 8088 |
+| File Service | 8089 |
+| Purchase Service | 8091 |
+| Finance Service | 8092 |
+| Report Service | 8093 |
+| Notification Service | 8094 |
 
 ### 前端开发
 
 ```bash
+npm install
 npm run dev:admin        # 管理后台 → http://localhost:5173
 npm run dev:pda          # WMS PDA  → http://localhost:5174
 npm run dev:dashboard    # 经营看板 → http://localhost:5175
 ```
 
-日志位于 `.cache/logs/` 目录；健康检查：`curl http://localhost:8080/health`
+## 开发与验证
 
-## 验证命令
-
-**推荐**：使用统一验证入口，自动固定 `GOCACHE` / `GOMODCACHE` 到仓库 `.cache/` 目录。
+推荐使用统一验证脚本，自动将 `GOCACHE` / `GOMODCACHE` 固定到仓库 `.cache/` 目录：
 
 ```bash
-# Linux / macOS / Git Bash / CI（含 typecheck + lint:ci + 三端 build）
+# Linux / macOS / Git Bash / CI
 ./scripts/verify.sh
 
 # Windows PowerShell
 .\scripts\verify.ps1
 
-# npm 不可用时仅验证 Go
-.\scripts\verify.ps1 -SkipFrontend
+# 跳过前端（仅验证 Go）
 ./scripts/verify.sh --skip-frontend
+.\scripts\verify.ps1 -SkipFrontend
+```
 
-# Makefile 等价入口
-make verify    # 全量（Go + 前端，经 verify.sh）
-make test      # 仅 Go 测试
-make lint      # go vet + npm run lint
+**Makefile 快捷入口：**
+
+```bash
+make verify    # Go vet/test/build + 前端 typecheck/lint/build
+make test      # Go 单元测试
+make lint      # go vet + eslint
+make build     # 编译全部 Go 服务
 make all       # 编译 + 测试
+make help      # 查看所有命令
 ```
 
 > 直接运行 `go test ./...` 可能因系统默认 Go 缓存目录权限失败；请优先使用上述脚本或 `make test`。
 
-### 后端（手动）
+### 手动启动（可选）
 
 ```bash
-mkdir -p .cache/go-build .cache/go-mod
-export GOCACHE=$PWD/.cache/go-build
-export GOMODCACHE=$PWD/.cache/go-mod
-
-go vet -C backend ./...
-go test -C backend ./...
-go build -C backend ./...
-
 # 启动开发中间件
 docker compose -f docker/compose/docker-compose.dev.yml up -d
 
-# 启动 IAM 服务（需先完成数据库迁移和种子数据）
+# 启动 IAM 服务（需先完成数据库迁移）
 DATABASE_PORT=5433 SERVER_PORT=8081 JWT_SECRET=dev-secret go run ./backend/services/iam-service/cmd/server/
 ```
 
-### 前端（手动）
+环境变量模板见 [.env.example](.env.example)。
 
-```bash
-npm install
-npm run dev:admin      # 管理后台，端口 5173
-npm run dev:pda        # PDA，端口 5174
-npm run dev:dashboard  # 看板，端口 5175
-npm run typecheck
-npm run build:admin
-npm run build:pda
-npm run build:dashboard
-```
+## 文档
 
-当前前端验证状态：
+完整文档索引见 [docs/文档索引.md](docs/文档索引.md)。
 
-- 历史上三个项目 typecheck 和 build 均通过；部分 Windows shell 可能无法执行 npm，可用 `-SkipFrontend` 先验 Go。
-- Windows 环境下可能需要安装 `@rollup/rollup-win32-x64-msvc` 可选依赖。
+**架构与设计：**
 
-### 快捷命令
-
-```bash
-make help   # 查看所有可用命令
-make dev    # 启动 Docker 中间件
-```
-
-## 当前开发重点
-
-1. 关闭 Quality Gate 阻断项：`secrets:S8215` BLOCKER + Security Hotspot 审查（见 [待办清单 §4](docs/待办清单.md#4-quality-gate-阻断项立即修复)、[sonarcloud-report.md](docs/sonarcloud-report.md)）。
-2. 深度集成测试：多服务 testcontainers、跨 tenant、P4 全链路 HTTP（T-616~T-618）。
-3. 架构演进：gRPC codegen 试点 + Redis/OpenSearch 接入 + OpenTelemetry 链路追踪（T-601~T-605）。
-4. 工程化收尾：`golang-migrate` 试点、CI 镜像漏洞扫描（T-623、T-625）。
-5. 补齐 Kubernetes/Helm 生产部署配置和运维手册。
-
-## 相关文档
-
-- [文档索引](docs/文档索引.md)
 - [项目架构设计](docs/项目架构设计.md)
-- [技术栈与中间件管理规范](docs/技术栈与中间件管理规范.md)
-- [项目里程碑与全流程待办清单](docs/项目里程碑与全流程待办清单.md)
 - [领域模型设计](docs/领域模型设计.md)
 - [微服务设计说明](docs/微服务设计说明.md)
 - [接口与事件设计](docs/接口与事件设计.md)
 - [数据模型设计](docs/数据模型设计.md)
+
+**工程规范：**
+
+- [技术栈与中间件管理规范](docs/技术栈与中间件管理规范.md)
 - [实施路线与工程规范](docs/实施路线与工程规范.md)
+
+**运维：**
+
+- [docs/runbooks/](docs/runbooks/) — 部署、E2E 烟测、备份恢复等操作手册
+
+**API 契约：**
+
+- [docs/api/openapi.yaml](docs/api/openapi.yaml)
 
 ## 生产部署注意事项
 
-当前项目尚未进入生产部署阶段。后续实现生产部署前必须注意：
-
-- 生产环境必须通过环境变量、Kubernetes Secret 或专用密钥管理系统注入敏感配置。
-- 设置 `ENVIRONMENT=production` 时，Gateway/IAM 将拒绝默认 `JWT_SECRET` 与默认数据库密码（见 `.env.example`）；非 `development` 环境 DB 未就绪时服务将退出而非占位降级。
-- 生产 CORS 须配置 `CORS_ALLOWED_ORIGINS` 白名单（勿使用 `*`）。
-- Gateway 可选启用 `GATEWAY_RBAC_ENABLED=true` 进行粗粒度 RBAC；后端服务应通过 NetworkPolicy 禁止绕过 Gateway 直连。
-- 不要提交 `.env`、数据库密码、平台 Token、物流商密钥、支付密钥或真实客户数据。
-- Amazon、物流商、海外仓等外部系统 Token 必须加密存储并记录授权审计。
-- 多租户数据访问必须强制校验 `tenant_id`。
-- 库存调整、财务冲销、权限变更、数据导出必须记录审计日志。
-- 所有服务必须接入结构化日志、指标和链路追踪。
-- 首次上线前必须完成备份恢复演练、死信补偿流程和权限渗透检查。
+- 生产环境必须通过环境变量、Kubernetes Secret 或专用密钥管理系统注入敏感配置
+- 设置 `ENVIRONMENT=production` 时，Gateway/IAM 将拒绝默认 `JWT_SECRET` 与默认数据库密码（见 `.env.example`）；非 `development` 环境数据库未就绪时服务将退出
+- 生产 CORS 须配置 `CORS_ALLOWED_ORIGINS` 白名单，勿使用 `*`
+- Gateway 可选启用 `GATEWAY_RBAC_ENABLED=true` 进行粗粒度 RBAC；后端服务应通过 NetworkPolicy 禁止绕过 Gateway 直连
+- 不要提交 `.env`、数据库密码、平台 Token、物流商密钥、支付密钥或真实客户数据
+- 外部系统 Token 必须加密存储并记录授权审计
+- 多租户数据访问必须强制校验 `tenant_id`
+- 库存调整、财务冲销、权限变更、数据导出必须记录审计日志
+- 所有服务必须接入结构化日志、指标和链路追踪

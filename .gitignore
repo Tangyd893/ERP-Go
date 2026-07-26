@@ -49,5 +49,6 @@ uploads/
 exports/
 tmp/
 
-# 根目录编译产物（勿用裸 `server`，会误忽略 cmd/server/）
-/server
+# 工具生成物
+.understand-anything/
+

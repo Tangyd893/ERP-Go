@@ -198,6 +198,9 @@ func parseJWT(tokenString string) (*jwtClaims, error) {
 	if !ok || !token.Valid {
 		return nil, fmt.Errorf("无效的令牌")
 	}
+	if claims.Type != "" && claims.Type != "access" {
+		return nil, fmt.Errorf("令牌类型无效")
+	}
 	return claims, nil
 }
 

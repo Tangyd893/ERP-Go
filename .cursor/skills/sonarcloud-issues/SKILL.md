@@ -4,7 +4,7 @@ description: >-
   Fetches open SonarCloud issues via the official /api/issues/search API (same
   data as the project issues web UI) and formats them for LLM consumption or
   docs updates. Use when the user shares sonarcloud.io/project/issues links,
-  asks for Sonar issue lists, quality debt triage, or updating docs/待办清单.md
+  asks for Sonar issue lists, quality debt triage, or updating docs/todos.md
   from SonarCloud.
 ---
 
@@ -28,7 +28,7 @@ From repo root, run the bundled script (paginates automatically):
 bash .cursor/skills/sonarcloud-issues/scripts/fetch-issues.sh
 ```
 
-Write markdown to a file (e.g. for `docs/待办清单.md` refresh):
+Write markdown to a file (e.g. for `docs/todos.md` refresh):
 
 ```powershell
 .\.cursor\skills\sonarcloud-issues\scripts\fetch-issues.ps1 -OutFile .cache/sonar-issues.md
@@ -65,7 +65,7 @@ When the user asks to pull Sonar issues or update quality docs:
 Invoke-RestMethod "https://sonarcloud.io/api/measures/component?component=Tangyd893_ERP-Go&branch=main&metricKeys=bugs,vulnerabilities,code_smells,security_rating,reliability_rating,sqale_rating,duplicated_lines_density,ncloc"
 ```
 
-4. Map findings to project tasks (e.g. `docs/待办清单.md` §7 `T-xxx`) when updating docs.
+4. Map findings to project tasks (e.g. `docs/todos.md` §7 `T-xxx`) when updating docs.
 
 ## API reference (minimal)
 
@@ -92,7 +92,7 @@ The script emits:
 3. **Issues by severity** — `BLOCKER` → `CRITICAL` → … each issue as one bullet: `path:line | rule | type | message | effort`.
 4. **Issues by file** — grouped path for implementation planning.
 
-Use this output directly in chat or paste sections into `docs/待办清单.md` §3–§5.
+Use this output directly in chat or paste sections into `docs/todos.md` §3–§5.
 
 ## Troubleshooting
 
