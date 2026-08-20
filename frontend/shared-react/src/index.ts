@@ -1,6 +1,7 @@
 export { cn } from "./lib/cn";
 export { default as apiClient } from "./api";
 export { isDemo } from "./demo";
+export { DEMO_DASHBOARD, DEMO_TOKEN, DEMO_USER, resetWarehouseDemo } from "./demo/data";
 export * from "./types";
 
 export { Button, buttonVariants } from "./components/ui/button";

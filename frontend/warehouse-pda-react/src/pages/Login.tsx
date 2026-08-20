@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Button, Input } from "@erp/shared-react";
+import { Button, Input, isDemo } from "@erp/shared-react";
 import { useAuthStore } from "@/stores/auth";
 
 export default function Login() {
@@ -57,7 +57,9 @@ export default function Login() {
           {loading ? "登录中…" : "登 录"}
         </Button>
       </form>
-      <p className="mt-4 text-center text-xs text-pda-text-secondary">开发默认: admin / admin123</p>
+      <p className="mt-4 text-center text-xs text-pda-text-secondary">
+        {isDemo() ? "演示模式：本地 mock，无需后端 · admin / admin123" : "开发默认: admin / admin123"}
+      </p>
     </div>
   );
 }

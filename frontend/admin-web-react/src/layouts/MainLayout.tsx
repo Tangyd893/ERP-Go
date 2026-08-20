@@ -33,6 +33,7 @@ import {
   DialogTitle,
   Input,
   cn,
+  isDemo,
 } from "@erp/shared-react";
 import { useAuthStore } from "@/stores/auth";
 
@@ -261,6 +262,11 @@ export default function MainLayout() {
           </div>
 
           <div className="flex items-center gap-2">
+            {isDemo() ? (
+              <span className="hidden rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-900 sm:inline">
+                DEMO
+              </span>
+            ) : null}
             <Button
               variant="outline"
               size="sm"

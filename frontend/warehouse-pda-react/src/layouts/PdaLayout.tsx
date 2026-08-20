@@ -1,7 +1,7 @@
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Box, CheckSquare, Home, List, User } from "lucide-react";
 import { useAuthStore } from "@/stores/auth";
-import { cn } from "@erp/shared-react";
+import { cn, isDemo } from "@erp/shared-react";
 
 const tabs = [
   { path: "/", label: "首页", icon: Home },
@@ -39,7 +39,14 @@ export default function PdaLayout() {
   return (
     <div className="flex h-[100dvh] flex-col bg-pda-bg">
       <header className="pda-safe-top z-[var(--z-sticky,40)] flex h-12 shrink-0 items-center justify-between border-b border-border bg-white px-3">
-        <span className="text-base font-semibold text-pda-text">WMS PDA</span>
+        <span className="text-base font-semibold text-pda-text">
+          WMS PDA
+          {isDemo() ? (
+            <span className="ml-2 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-900">
+              DEMO
+            </span>
+          ) : null}
+        </span>
         <div className="flex items-center gap-1">
           <span className="max-w-[120px] truncate text-xs text-pda-text-secondary">
             {username || tenantId || "未登录"}

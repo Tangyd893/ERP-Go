@@ -2,14 +2,14 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Lock, User } from "lucide-react";
 import { toast } from "sonner";
-import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label } from "@erp/shared-react";
+import { Button, Card, CardContent, CardHeader, CardTitle, Input, Label, isDemo } from "@erp/shared-react";
 import { useAuthStore } from "@/stores/auth";
 
 export default function Login() {
   const navigate = useNavigate();
   const login = useAuthStore((s) => s.login);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState(isDemo() ? "admin" : "");
+  const [password, setPassword] = useState(isDemo() ? "admin123" : "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -55,6 +55,11 @@ export default function Login() {
               登录管理后台
             </CardTitle>
             <p className="text-sm text-muted-foreground text-pretty">使用 IAM 账号进入系统</p>
+            {isDemo() ? (
+              <p className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
+                演示模式：本地 mock 数据，无需后端。默认账号已填入。
+              </p>
+            ) : null}
           </CardHeader>
           <CardContent>
             <form className="space-y-4" onSubmit={handleLogin}>

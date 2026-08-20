@@ -174,10 +174,13 @@ curl http://localhost:8080/health
 npm install
 npm run dev:admin          # 管理后台 Vue  → http://localhost:5173
 npm run dev:admin-react    # 管理后台 React → http://localhost:5273
+npm run dev:admin-react:demo # 同上（本地 mock，无需后端）
 npm run dev:pda            # WMS PDA Vue   → http://localhost:5174
 npm run dev:pda-react      # WMS PDA React → http://localhost:5274
+npm run dev:pda-react:demo # 同上（本地 mock）
 npm run dev:dashboard      # 经营看板 Vue  → http://localhost:5175
 npm run dev:dashboard-react # 经营看板 React → http://localhost:5275
+npm run dev:dashboard-react:demo # 同上（本地 mock）
 ```
 
 React 前端生产镜像（`APP` 可选 `admin-web-react` / `dashboard-web-react` / `warehouse-pda-react`）：

@@ -35,7 +35,15 @@ Get-Content .cache\logs\gateway.log -Tail 20
 Get-Content .cache\logs\order.log -Tail 20
 ```
 
-## 2. 启动三端前端
+## 2.0 React 演示模式（无需后端）
+
+```powershell
+npm run dev:admin-react:demo      # → http://localhost:5273  （.env.demo）
+npm run dev:pda-react:demo        # → http://localhost:5274
+npm run dev:dashboard-react:demo  # → http://localhost:5275
+```
+
+`VITE_DEMO_MODE=true` 时 `@erp/shared-react` 的 `apiClient` 使用本地 mock（登录/列表/PDA 扫码全链路），顶栏显示 **DEMO** 标记。账号：`admin` / `admin123`。
 
 ```powershell
 # Vue（现网）
