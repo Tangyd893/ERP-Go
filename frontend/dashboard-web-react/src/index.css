@@ -1,0 +1,7 @@
+@import "@erp/shared-react/styles.css";
+
+@layer utilities {
+  .dashboard-shell {
+    @apply min-h-screen bg-background p-6;
+  }
+}

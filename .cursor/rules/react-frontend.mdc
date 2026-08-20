@@ -1,0 +1,29 @@
+---
+description: React 并行前端（*-react / shared-react）约定与观感基线
+globs: frontend/**/*-react/**/*,frontend/shared-react/**/*
+alwaysApply: false
+---
+
+# React 前端约定
+
+## 范围
+
+- 只修改 `frontend/*-react` 与 `frontend/shared-react`；**禁止**改写现有 Vue 包（`admin-web` / `dashboard-web` / `warehouse-pda` / `shared`）。
+- Vue 与 React 并存；默认脚本 `dev:admin` 等仍指向 Vue，React 使用 `dev:admin-react` 等。
+
+## 技术栈
+
+- React 18 + Vite + TypeScript + Tailwind CSS + shadcn/ui（Radix）+ Zustand + TanStack Query + react-hook-form + zod
+- 共享包名：`@erp/shared-react`；业务 UI 原语必须从该包导出，禁止在页面内另起一套组件体系
+
+## 观感与交互
+
+- 执行 UI 相关改动前，遵循项目内 `baseline-ui` 与 `design-taste-frontend`（Taste）skill
+- 风格：专业 ERP 后台（Linear / Vercel Dashboard 取向）；浅色为主、深色可选
+- 禁止：紫/多色渐变、glow 作为主视觉、默认 Inter/Roboto 堆砌的 AI 模板感
+- 数据列使用 `tabular-nums`；空态须有明确下一步；交互动效 ≤200ms，尊重 `prefers-reduced-motion`
+
+## API
+
+- 与 Vue 版同一 Gateway：`VITE_API_BASE_URL` 或 `/api/v1`；Bearer + `X-Tenant-ID`；401 清 token 并跳转 `/login`
+- 功能对等优先；未接线的 Vue 空按钮可保留为 stub，勿擅自改后端契约

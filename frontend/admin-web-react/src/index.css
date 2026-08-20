@@ -1,0 +1,7 @@
+@import "@erp/shared-react/styles.css";
+
+@layer utilities {
+  .page-shell {
+    @apply mx-auto max-w-[1400px] space-y-4;
+  }
+}

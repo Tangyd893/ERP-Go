@@ -23,9 +23,9 @@ ERP-Go 是一个基于 Go 微服务架构的跨境电商 ERP 系统，面向跨�
 
 ```text
 frontend
-  ├─ ERP 管理后台 (admin-web)
-  ├─ WMS PDA / H5 (warehouse-pda)
-  └─ 经营看板 (dashboard-web)
+  ├─ ERP 管理后台 (admin-web Vue · admin-web-react 并行)
+  ├─ WMS PDA / H5 (warehouse-pda Vue · warehouse-pda-react 并行)
+  └─ 经营看板 (dashboard-web Vue · dashboard-web-react 并行)
         |
         v
 API Gateway
@@ -86,7 +86,8 @@ Prometheus | Grafana | Loki | Jaeger
 | 异步事件 | RabbitMQ，Outbox/Inbox 可靠消息 |
 | 对象存储 | MinIO（生产可对接 S3 兼容存储） |
 | 搜索分析 | OpenSearch |
-| 前端 | Vue 3 + TypeScript + Vite + Pinia + Element Plus |
+| 前端 | Vue 3（现网）+ React 18 并行（admin-web-react）+ TypeScript + Vite |
+| React 管理端 | Tailwind + shadcn/Radix（@erp/shared-react）+ Zustand + TanStack Query |
 | 仓库终端 | Vue 3 H5 / PDA 扫码作业 |
 | 监控 | Prometheus、Grafana、Loki、Jaeger |
 | 部署 | Docker Compose（本地）；Kubernetes / Helm（生产） |
@@ -96,7 +97,7 @@ Prometheus | Grafana | Loki | Jaeger
 ```text
 ERP-Go/
   backend/    后端微服务、网关、共享组件、数据库迁移
-  frontend/   ERP 管理后台、WMS PDA、经营看板、共享组件
+  frontend/   Vue 三端 + React 并行管理端（admin-web-react）与 shared-react
   docker/     Docker Compose、Kubernetes、监控和部署配置
   testing/    集成测试、契约测试、端到端测试、性能测试
   docs/       架构设计、领域模型、接口事件、数据模型和工程规范
@@ -171,9 +172,19 @@ curl http://localhost:8080/health
 
 ```bash
 npm install
-npm run dev:admin        # 管理后台 → http://localhost:5173
-npm run dev:pda          # WMS PDA  → http://localhost:5174
-npm run dev:dashboard    # 经营看板 → http://localhost:5175
+npm run dev:admin          # 管理后台 Vue  → http://localhost:5173
+npm run dev:admin-react    # 管理后台 React → http://localhost:5273
+npm run dev:pda            # WMS PDA Vue   → http://localhost:5174
+npm run dev:pda-react      # WMS PDA React → http://localhost:5274
+npm run dev:dashboard      # 经营看板 Vue  → http://localhost:5175
+npm run dev:dashboard-react # 经营看板 React → http://localhost:5275
+```
+
+React 前端生产镜像（`APP` 可选 `admin-web-react` / `dashboard-web-react` / `warehouse-pda-react`）：
+
+```bash
+docker build -f docker/frontend/Dockerfile --build-arg APP=admin-web-react -t erp-admin-web-react .
+docker run --rm -p 8088:80 erp-admin-web-react
 ```
 
 ## 开发与验证

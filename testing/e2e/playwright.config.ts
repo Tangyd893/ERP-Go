@@ -16,26 +16,50 @@ export default defineConfig({
   projects: [
     {
       name: "admin",
-      testMatch: /admin.*\.spec\.ts/,
+      testMatch: /admin-smoke\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         baseURL: "http://localhost:5173",
       },
     },
     {
+      name: "admin-react",
+      testMatch: /admin-react-smoke\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: "http://localhost:5273",
+      },
+    },
+    {
       name: "pda",
-      testMatch: /pda.*\.spec\.ts/,
+      testMatch: /pda-smoke\.spec\.ts/,
       use: {
         ...devices["Pixel 7"],
         baseURL: "http://localhost:5174",
       },
     },
     {
+      name: "pda-react",
+      testMatch: /pda-react-smoke\.spec\.ts/,
+      use: {
+        ...devices["Pixel 7"],
+        baseURL: "http://localhost:5274",
+      },
+    },
+    {
       name: "dashboard",
-      testMatch: /dashboard.*\.spec\.ts/,
+      testMatch: /dashboard-smoke\.spec\.ts/,
       use: {
         ...devices["Desktop Chrome"],
         baseURL: "http://localhost:5175",
+      },
+    },
+    {
+      name: "dashboard-react",
+      testMatch: /dashboard-react-smoke\.spec\.ts/,
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: "http://localhost:5275",
       },
     },
   ],
@@ -48,16 +72,34 @@ export default defineConfig({
       timeout: 30000,
     },
     {
+      command: "npm run dev:admin-react",
+      port: 5273,
+      reuseExistingServer: true,
+      timeout: 60000,
+    },
+    {
       command: "npm run dev:pda",
       port: 5174,
       reuseExistingServer: true,
       timeout: 30000,
     },
     {
+      command: "npm run dev:pda-react",
+      port: 5274,
+      reuseExistingServer: true,
+      timeout: 60000,
+    },
+    {
       command: "npm run dev:dashboard",
       port: 5175,
       reuseExistingServer: true,
       timeout: 30000,
+    },
+    {
+      command: "npm run dev:dashboard-react",
+      port: 5275,
+      reuseExistingServer: true,
+      timeout: 60000,
     },
   ],
 });

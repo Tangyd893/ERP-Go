@@ -1,0 +1,44 @@
+@import "@erp/shared-react/styles.css";
+
+@layer base {
+  :root {
+    --pda-primary: #0ea5e9;
+    --pda-success: #22c55e;
+    --pda-warning: #f59e0b;
+    --pda-danger: #ef4444;
+    --pda-bg: #f5f5f5;
+    --pda-card-bg: #ffffff;
+    --pda-text: #303133;
+    --pda-text-secondary: #909399;
+    --pda-touch-min: 44px;
+    --pda-safe-bottom: env(safe-area-inset-bottom, 0px);
+    --pda-safe-top: env(safe-area-inset-top, 0px);
+  }
+
+  html,
+  body,
+  #root {
+    @apply h-full;
+    margin: 0;
+    padding: 0;
+    font-size: 16px;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
+
+@layer utilities {
+  .pda-touch-target {
+    min-height: var(--pda-touch-min);
+    min-width: var(--pda-touch-min);
+  }
+
+  .pda-safe-top {
+    padding-top: var(--pda-safe-top);
+  }
+
+  .pda-safe-bottom {
+    padding-bottom: var(--pda-safe-bottom);
+  }
+}

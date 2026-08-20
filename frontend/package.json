@@ -4,8 +4,12 @@
   "private": true,
   "workspaces": [
     "shared",
+    "shared-react",
     "admin-web",
+    "admin-web-react",
     "dashboard-web",
-    "warehouse-pda"
+    "dashboard-web-react",
+    "warehouse-pda",
+    "warehouse-pda-react"
   ]
 }

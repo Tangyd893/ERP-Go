@@ -38,11 +38,47 @@ Get-Content .cache\logs\order.log -Tail 20
 ## 2. 启动三端前端
 
 ```powershell
-# 三个终端分别启动
-cd frontend\admin-web; npm run dev       # → http://localhost:5173
-cd frontend\warehouse-pda; npm run dev   # → http://localhost:5174
-cd frontend\dashboard-web; npm run dev   # → http://localhost:5175
+# Vue（现网）
+npm run dev:admin            # → http://localhost:5173
+npm run dev:pda              # → http://localhost:5174
+npm run dev:dashboard        # → http://localhost:5175
+
+# React 并行三端（不替换 Vue）
+npm run dev:admin-react      # → http://localhost:5273
+npm run dev:pda-react        # → http://localhost:5274
+npm run dev:dashboard-react  # → http://localhost:5275
 ```
+
+## 2.1 Admin React 验收（`http://localhost:5273/login`）
+
+| # | 检查项 | 预期 | 实际 |
+|---|--------|------|------|
+| R1 | 登录页 | 分栏/居中登录，IBM Plex，无紫渐变 | ☐ |
+| R2 | 登录 | `admin` / `admin123` → `/dashboard` | ☐ |
+| R3 | 侧边栏 | 可折叠；菜单与 Vue 路由对齐 | ☐ |
+| R4 | ⌘/Ctrl+K | 打开快速导航 | ☐ |
+| R5 | 订单列表 | 有表格结构（空数据允许） | ☐ |
+| R6 | 退出 | 右上角 → 退出登录 → `/login` | ☐ |
+| R7 | 构建 | `npm run build:admin-react` 通过 | ☐ |
+| R8 | 镜像 | `docker build -f docker/frontend/Dockerfile --build-arg APP=admin-web-react …` 可起 | ☐ |
+
+## 2.2 Dashboard React 验收（`http://localhost:5275/`）
+
+| # | 检查项 | 预期 | 实际 |
+|---|--------|------|------|
+| DR1 | KPI | 订单/销售/出库/SKU 卡片可见 | ☐ |
+| DR2 | 图表 | 趋势图 + 出库时效环形图可渲染 | ☐ |
+| DR3 | Demo | `VITE_DEMO_MODE=true` 无永久 loading | ☐ |
+| DR4 | 构建 | `npm run build:dashboard-react` 通过 | ☐ |
+
+## 2.3 PDA React 验收（`http://localhost:5274/login`）
+
+| # | 检查项 | 预期 | 实际 |
+|---|--------|------|------|
+| PR1 | 登录 | `admin` / `admin123` → 首页 | ☐ |
+| PR2 | 底栏 | 首页/拣货/复核/打包/我的 可切换 | ☐ |
+| PR3 | 扫码页 | 输入框可聚焦；确认后自动再聚焦 | ☐ |
+| PR4 | 构建 | `npm run build:pda-react` 通过 | ☐ |
 
 ## 3. 验收清单
 

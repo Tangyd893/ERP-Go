@@ -63,11 +63,20 @@ if [[ "$SKIP_FRONTEND" -eq 0 ]]; then
     step "npm run build:admin"
     npm run build:admin
 
+    step "npm run build:admin-react"
+    npm run build:admin-react
+
     step "npm run build:pda"
     npm run build:pda
 
+    step "npm run build:pda-react"
+    npm run build:pda-react
+
     step "npm run build:dashboard"
     npm run build:dashboard
+
+    step "npm run build:dashboard-react"
+    npm run build:dashboard-react
   fi
 else
   echo ""
