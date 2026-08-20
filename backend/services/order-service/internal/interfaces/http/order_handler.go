@@ -18,7 +18,7 @@ const fallbackMsg = "接口已联通，等待数据库迁移完成"
 // OrderHandler 订单 HTTP 处理器
 type OrderHandler struct {
 	appService    *app.OrderAppService
-	coordinator   *workflows.P4OutboundFlowCoordinator
+	coordinator   *app.P4OutboundFlowCoordinator
 	outboxStore   outbox.OutboxStore
 	fallbackMode  bool
 }
@@ -30,7 +30,7 @@ func NewOrderHandler(appService *app.OrderAppService) *OrderHandler {
 	}
 }
 
-func (h *OrderHandler) WithCoordinator(coordinator *workflows.P4OutboundFlowCoordinator) *OrderHandler {
+func (h *OrderHandler) WithCoordinator(coordinator *app.P4OutboundFlowCoordinator) *OrderHandler {
 	h.coordinator = coordinator
 	return h
 }
@@ -76,7 +76,7 @@ func (h *OrderHandler) getOrder(c *gin.Context) {
 		return
 	}
 
-	order, err := h.appService.GetOrder(c.Request.Context(), c.Param("id"))
+	order, err := h.appService.GetOrder(c.Request.Context(), c.GetString("tenant_id"), c.Param("id"))
 	if err != nil {
 		if bizErr, ok := err.(*sharedErrors.BusinessError); ok {
 			response.BusinessError(c, bizErr)
@@ -107,15 +107,16 @@ func (h *OrderHandler) auditOrder(c *gin.Context) {
 	if operator == "" {
 		operator = "system"
 	}
+	tenantID := c.GetString("tenant_id")
 
 	if req.Approved {
-		if err := h.appService.ApproveOrder(c.Request.Context(), req.OrderID, operator); err != nil {
+		if err := h.appService.ApproveOrder(c.Request.Context(), tenantID, req.OrderID, operator); err != nil {
 			response.Error(c, http.StatusOK, sharedErrors.CodeOrderAuditFailed, err.Error())
 			return
 		}
 		response.Success(c, gin.H{"approved": true})
 	} else {
-		if err := h.appService.CancelOrder(c.Request.Context(), req.OrderID, operator, "审核不通过"); err != nil {
+		if err := h.appService.CancelOrder(c.Request.Context(), tenantID, req.OrderID, operator, "审核不通过"); err != nil {
 			response.Error(c, http.StatusOK, sharedErrors.CodeOrderAuditFailed, err.Error())
 			return
 		}
@@ -143,7 +144,7 @@ func (h *OrderHandler) markAbnormal(c *gin.Context) {
 		operator = "system"
 	}
 
-	if err := h.appService.MarkAbnormal(c.Request.Context(), req.OrderID, operator, req.Reason); err != nil {
+	if err := h.appService.MarkAbnormal(c.Request.Context(), c.GetString("tenant_id"), req.OrderID, operator, req.Reason); err != nil {
 		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, err.Error())
 		return
 	}
@@ -170,7 +171,7 @@ func (h *OrderHandler) cancelOrder(c *gin.Context) {
 		operator = "system"
 	}
 
-	if err := h.appService.CancelOrder(c.Request.Context(), req.OrderID, operator, req.Reason); err != nil {
+	if err := h.appService.CancelOrder(c.Request.Context(), c.GetString("tenant_id"), req.OrderID, operator, req.Reason); err != nil {
 		response.Error(c, http.StatusInternalServerError, sharedErrors.CodeInternalError, err.Error())
 		return
 	}

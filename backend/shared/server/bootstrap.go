@@ -45,6 +45,7 @@ type Server struct {
 
 // New 创建并启动服务
 func New(opts Options) *Server {
+	middleware.RequireInternalTokenConfigured()
 	cfg, log := resolveConfig(opts)
 	engine := setupEngine(log)
 	db := initDB(opts, cfg, log)

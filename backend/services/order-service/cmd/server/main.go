@@ -17,7 +17,9 @@ import (
 	"github.com/Tangyd893/ERP-Go/backend/shared/events"
 	"github.com/Tangyd893/ERP-Go/backend/shared/logger"
 	"github.com/Tangyd893/ERP-Go/backend/shared/middleware"
+	opensearchx "github.com/Tangyd893/ERP-Go/backend/shared/opensearch"
 	"github.com/Tangyd893/ERP-Go/backend/shared/outbox"
+	"github.com/Tangyd893/ERP-Go/backend/shared/telemetry"
 	"github.com/Tangyd893/ERP-Go/backend/shared/workflows"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -30,17 +32,25 @@ type orderDeps struct {
 	orderAppService     *app.OrderAppService
 	orderHandler        *handler.OrderHandler
 	publisher           outbox.EventPublisher
-	coordinator         *workflows.P4OutboundFlowCoordinator
+	coordinator         *app.P4OutboundFlowCoordinator
 	fulfillmentConsumer *outbox.RabbitMQConsumer
 }
 
 func main() {
 	cfg, _ := config.Load("")
+	middleware.RequireInternalTokenConfigured()
 	cfg.Server.Name = "order-service"
 	if cfg.Server.Port == 0 || cfg.Server.Port == 8080 {
 		cfg.Server.Port = 8085
 	}
 	log := logger.New(cfg.Log.Level, cfg.Log.Format, cfg.Log.Output, cfg.Server.Name, os.Getenv("ENVIRONMENT"))
+
+	shutdownTrace, err := telemetry.InitTracer(context.Background(), "order-service", "")
+	if err != nil {
+		log.Warnf("OTel 初始化失败（继续启动）: %v", err)
+		shutdownTrace = func(context.Context) error { return nil }
+	}
+	defer func() { _ = shutdownTrace(context.Background()) }()
 
 	deps := setupDB(cfg, log)
 	if deps.orderHandler == nil {
@@ -65,6 +75,15 @@ func setupDB(cfg *config.Config, log logger.Logger) *orderDeps {
 	orderRepo := repository.NewOrderRepository(deps.db)
 	deps.orderAppService = app.NewOrderAppService(orderRepo)
 	deps.orderAppService.WithOutbox(outbox.NewPGOutboxStore(deps.db))
+
+	if osClient := opensearchx.NewFromEnv(); osClient != nil {
+		if err := osClient.EnsureIndex(context.Background(), opensearchx.IndexOrders); err != nil {
+			log.Warnf("OpenSearch EnsureIndex 失败（继续）: %v", err)
+		} else {
+			deps.orderAppService.WithOrderIndexer(app.NewOrderSearchIndexer(osClient))
+			log.Info("OpenSearch 订单索引已启用")
+		}
+	}
 	return deps
 }
 
@@ -105,10 +124,12 @@ func setupHTTP(cfg *config.Config, log logger.Logger, deps *orderDeps) {
 	engine := gin.New()
 	engine.Use(
 		middleware.Recovery(log), middleware.RequestID(), middleware.TraceID(),
-		middleware.TenantID(), middleware.CORS(), middleware.RequestLogger(log),
+		middleware.TenantID(), middleware.UserID(), middleware.CORS(), middleware.RequestLogger(log),
 	)
 	engine.GET("/health", healthHandler(cfg.Server.Name, deps.db))
-	deps.orderHandler.RegisterRoutes(engine.Group("/api/v1/order"))
+	api := engine.Group("/api/v1/order")
+	api.Use(middleware.RequireTenant())
+	deps.orderHandler.RegisterRoutes(api)
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
 	srv := &http.Server{Addr: addr, Handler: engine, ReadTimeout: 30 * time.Second, WriteTimeout: 30 * time.Second}
@@ -180,7 +201,7 @@ func newEventPublisher(rabbitURL string, log logger.Logger) outbox.EventPublishe
 	return rmqPublisher
 }
 
-func buildCoordinator(db *gorm.DB, outboxStore outbox.OutboxStore, orderAppService *app.OrderAppService) *workflows.P4OutboundFlowCoordinator {
+func buildCoordinator(db *gorm.DB, outboxStore outbox.OutboxStore, orderAppService *app.OrderAppService) *app.P4OutboundFlowCoordinator {
 	inventoryURL := os.Getenv("INVENTORY_SERVICE_URL")
 	if inventoryURL == "" {
 		inventoryURL = "http://localhost:8086"
@@ -191,7 +212,7 @@ func buildCoordinator(db *gorm.DB, outboxStore outbox.OutboxStore, orderAppServi
 	}
 
 	orderRepo := repository.NewOrderRepository(db)
-	coordinator := workflows.NewP4OutboundFlowCoordinator(outboxStore, outbox.NewPGInboxStore(db))
+	coordinator := app.NewP4OutboundFlowCoordinator(outboxStore, outbox.NewPGInboxStore(db))
 	coordinator.SetStockHandler(workflows.NewHTTPStockLockAdapter(inventoryURL))
 	coordinator.SetStockDeductHandler(workflows.NewHTTPStockDeductAdapter(inventoryURL))
 	coordinator.SetOutboundCreator(workflows.NewHTTPOutboundCreatorAdapter(warehouseURL))
@@ -200,7 +221,7 @@ func buildCoordinator(db *gorm.DB, outboxStore outbox.OutboxStore, orderAppServi
 }
 
 func startFulfillmentConsumer(ctx context.Context, db *gorm.DB, rabbitURL string,
-	coordinator *workflows.P4OutboundFlowCoordinator, log logger.Logger) *outbox.RabbitMQConsumer {
+	coordinator *app.P4OutboundFlowCoordinator, log logger.Logger) *outbox.RabbitMQConsumer {
 	if rabbitURL == "" {
 		return nil
 	}
@@ -237,7 +258,7 @@ func healthHandler(name string, db *gorm.DB) gin.HandlerFunc {
 // ---- 事件处理器实现 ----
 
 type orderApprovedHandler struct {
-	coordinator *workflows.P4OutboundFlowCoordinator
+	coordinator *app.P4OutboundFlowCoordinator
 }
 
 func (h *orderApprovedHandler) EventType() string { return "order.approved" }
@@ -247,7 +268,7 @@ func (h *orderApprovedHandler) Handle(ctx context.Context, msg *outbox.OutboxMes
 }
 
 type orderCancelledHandler struct {
-	coordinator *workflows.P4OutboundFlowCoordinator
+	coordinator *app.P4OutboundFlowCoordinator
 }
 
 func (h *orderCancelledHandler) EventType() string { return "order.cancelled" }

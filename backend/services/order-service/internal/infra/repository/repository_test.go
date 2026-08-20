@@ -140,7 +140,7 @@ func TestOrderRepositoryCRUD(t *testing.T) {
 	err := repo.Create(ctx, order)
 	require.NoError(t, err, "创建订单失败")
 
-	found, err := repo.FindByID(ctx, order.ID)
+	found, err := repo.FindByID(ctx, tenantID, order.ID)
 	require.NoError(t, err, "查询订单失败")
 	assert.Equal(t, order.PlatformOrderNo, found.PlatformOrderNo)
 	assert.Equal(t, order.BuyerName, found.BuyerName)
@@ -150,9 +150,9 @@ func TestOrderRepositoryCRUD(t *testing.T) {
 	assert.NotNil(t, found.Address)
 	assert.Equal(t, "张三", found.Address.ContactName)
 
-	err = repo.UpdateStatus(ctx, order.ID, "approved")
+	err = repo.UpdateStatus(ctx, tenantID, order.ID, "approved")
 	require.NoError(t, err, "更新状态失败")
-	found, err = repo.FindByID(ctx, order.ID)
+	found, err = repo.FindByID(ctx, tenantID, order.ID)
 	require.NoError(t, err)
 	assert.Equal(t, domain.OrderApproved, found.Status)
 
@@ -180,7 +180,7 @@ func TestOrderRepositoryFindByIDNotFound(t *testing.T) {
 	defer cleanup()
 
 	repo := NewOrderRepository(db)
-	_, err := repo.FindByID(context.Background(), "nonexistent-id")
+	_, err := repo.FindByID(context.Background(), "t-dbtest-001", "nonexistent-id")
 	assert.Error(t, err, "应返回错误")
 }
 

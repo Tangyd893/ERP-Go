@@ -24,14 +24,14 @@ func (m *mockOrderRepo) Create(ctx context.Context, order *domain.SalesOrder) er
 	return nil
 }
 
-func (m *mockOrderRepo) FindByID(ctx context.Context, id string) (*domain.SalesOrder, error) {
+func (m *mockOrderRepo) FindByID(ctx context.Context, tenantID, id string) (*domain.SalesOrder, error) {
 	if o, ok := m.orders[id]; ok {
 		return o, nil
 	}
 	return nil, nil
 }
 
-func (m *mockOrderRepo) UpdateStatus(ctx context.Context, id, status string) error {
+func (m *mockOrderRepo) UpdateStatus(ctx context.Context, tenantID, id, status string) error {
 	if o, ok := m.orders[id]; ok {
 		o.Status = domain.OrderStatus(status)
 	}
@@ -124,7 +124,7 @@ func TestApproveOrderEmitsEvent(t *testing.T) {
 	}
 	repo.orders[order.ID] = order
 
-	if err := svc.ApproveOrder(context.Background(), "order-002", "admin"); err != nil {
+	if err := svc.ApproveOrder(context.Background(), "default", "order-002", "admin"); err != nil {
 		t.Fatalf("审核订单失败: %v", err)
 	}
 
@@ -156,7 +156,7 @@ func TestCancelOrderEmitsEvent(t *testing.T) {
 	}
 	repo.orders[order.ID] = order
 
-	if err := svc.CancelOrder(context.Background(), "order-003", "admin", "测试取消"); err != nil {
+	if err := svc.CancelOrder(context.Background(), "default", "order-003", "admin", "测试取消"); err != nil {
 		t.Fatalf("取消订单失败: %v", err)
 	}
 

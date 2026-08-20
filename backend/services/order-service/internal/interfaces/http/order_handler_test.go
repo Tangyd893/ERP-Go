@@ -125,13 +125,13 @@ func (m *mockOrderRepo) Create(_ context.Context, order *domain.SalesOrder) erro
 	m.orders[order.ID] = order
 	return nil
 }
-func (m *mockOrderRepo) FindByID(_ context.Context, id string) (*domain.SalesOrder, error) {
+func (m *mockOrderRepo) FindByID(_ context.Context, _, id string) (*domain.SalesOrder, error) {
 	if o, ok := m.orders[id]; ok {
 		return o, nil
 	}
 	return nil, nil
 }
-func (m *mockOrderRepo) UpdateStatus(_ context.Context, id, status string) error {
+func (m *mockOrderRepo) UpdateStatus(_ context.Context, tenantID, id, status string) error {
 	if o, ok := m.orders[id]; ok {
 		o.Status = domain.OrderStatus(status)
 	}

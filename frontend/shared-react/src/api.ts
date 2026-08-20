@@ -47,6 +47,7 @@ const apiClient: AxiosInstance = axios.create({
 });
 
 apiClient.interceptors.request.use((config) => {
+  // Demo adapter is development-only (isDemo() is false in PROD builds).
   if (isDemo()) {
     config.adapter = demoAdapter;
   }

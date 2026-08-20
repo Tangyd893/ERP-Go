@@ -1,13 +1,24 @@
 package middleware
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/Tangyd893/ERP-Go/backend/shared/config"
 	"github.com/Tangyd893/ERP-Go/backend/shared/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+)
+
+// Internal identity headers (set by API Gateway after JWT validation).
+const (
+	HeaderInternalToken = "X-ERP-Internal-Token"
+	HeaderTenantID      = "X-Tenant-ID"
+	HeaderUserID        = "X-User-ID"
+	HeaderUsername      = "X-Username"
+	EnvInternalToken    = "INTERNAL_SERVICE_TOKEN"
 )
 
 // RequestID 请求 ID 中间件，每个请求分配唯一请求 ID
@@ -36,23 +47,75 @@ func TraceID() gin.HandlerFunc {
 	}
 }
 
-// TenantID 租户 ID 中间件，从请求头提取租户信息
-func TenantID() gin.HandlerFunc {
+func acceptTrustedIdentity(c *gin.Context) bool {
+	if config.IsDevelopment() {
+		return true
+	}
+	expected := os.Getenv(EnvInternalToken)
+	if expected == "" {
+		// Non-dev without shared secret: do not trust client-supplied identity headers.
+		return false
+	}
+	return c.GetHeader(HeaderInternalToken) == expected
+}
+
+// RequireInternalTokenConfigured panics in non-dev when INTERNAL_SERVICE_TOKEN is empty.
+// Call from microservice mains alongside gateway secure-config checks.
+func RequireInternalTokenConfigured() {
+	if !config.RequiresSecureConfig() {
+		return
+	}
+	if strings.TrimSpace(os.Getenv(EnvInternalToken)) == "" {
+		panic(EnvInternalToken + " must be set in non-development environments")
+	}
+}
+
+// RequireTenant rejects requests that lack a trusted tenant_id context (after TenantID()).
+func RequireTenant() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		tenantID := c.GetHeader("X-Tenant-ID")
-		if tenantID != "" {
-			c.Set("tenant_id", tenantID)
+		if tid, ok := c.Get("tenant_id"); !ok || strings.TrimSpace(fmt.Sprint(tid)) == "" {
+			c.AbortWithStatusJSON(401, gin.H{"code": 20000, "message": "缺少租户上下文"})
+			return
 		}
 		c.Next()
 	}
 }
 
-// UserID 用户 ID 中间件，从请求上下文提取用户信息（鉴权后设置）
+// TenantID 租户 ID 中间件，从请求头提取租户信息（非开发环境需网关内部令牌）
+func TenantID() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tenantID := c.GetHeader(HeaderTenantID)
+		if tenantID == "" {
+			c.Next()
+			return
+		}
+		if !acceptTrustedIdentity(c) {
+			c.Request.Header.Del(HeaderTenantID)
+			c.Next()
+			return
+		}
+		c.Set("tenant_id", tenantID)
+		c.Next()
+	}
+}
+
+// UserID 用户 ID 中间件，从请求头提取用户信息（非开发环境需网关内部令牌）
 func UserID() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userID := c.GetHeader("X-User-ID")
-		if userID != "" {
-			c.Set("user_id", userID)
+		userID := c.GetHeader(HeaderUserID)
+		if userID == "" {
+			c.Next()
+			return
+		}
+		if !acceptTrustedIdentity(c) {
+			c.Request.Header.Del(HeaderUserID)
+			c.Request.Header.Del(HeaderUsername)
+			c.Next()
+			return
+		}
+		c.Set("user_id", userID)
+		if username := c.GetHeader(HeaderUsername); username != "" {
+			c.Set("username", username)
 		}
 		c.Next()
 	}
@@ -140,7 +203,6 @@ func CORS() gin.HandlerFunc {
 		if allowAll {
 			c.Header("Access-Control-Allow-Origin", "*")
 		} else if origin != "" {
-			// 校验请求 Origin 是否在白名单中
 			for _, o := range strings.Split(allowedOrigins, ",") {
 				if strings.TrimSpace(o) == origin {
 					c.Header("Access-Control-Allow-Origin", origin)

@@ -59,9 +59,12 @@ func (r *OrderRepository) Create(ctx context.Context, order *domain.SalesOrder) 
 	})
 }
 
-func (r *OrderRepository) FindByID(ctx context.Context, id string) (*domain.SalesOrder, error) {
+func (r *OrderRepository) FindByID(ctx context.Context, tenantID, id string) (*domain.SalesOrder, error) {
+	if tenantID == "" {
+		return nil, errors.NewBusinessError(errors.CodeForbidden, "缺少租户上下文")
+	}
 	var m SalesOrderModel
-	err := r.db.WithContext(ctx).Where("id = ?", id).First(&m).Error
+	err := r.db.WithContext(ctx).Where("id = ? AND tenant_id = ?", id, tenantID).First(&m).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, errors.NewBusinessError(errors.CodeOrderNotFound, "订单不存在")
@@ -80,11 +83,26 @@ func (r *OrderRepository) FindByIdempotencyKey(ctx context.Context, key string) 
 	return r.loadOrder(ctx, &m)
 }
 
-func (r *OrderRepository) UpdateStatus(ctx context.Context, id string, status string) error {
-	return r.db.WithContext(ctx).Model(&SalesOrderModel{}).Where("id = ?", id).Update("order_status", status).Error
+func (r *OrderRepository) UpdateStatus(ctx context.Context, tenantID, id string, status string) error {
+	if tenantID == "" {
+		return errors.NewBusinessError(errors.CodeForbidden, "缺少租户上下文")
+	}
+	res := r.db.WithContext(ctx).Model(&SalesOrderModel{}).
+		Where("id = ? AND tenant_id = ?", id, tenantID).
+		Update("order_status", status)
+	if res.Error != nil {
+		return res.Error
+	}
+	if res.RowsAffected == 0 {
+		return errors.NewBusinessError(errors.CodeOrderNotFound, "订单不存在")
+	}
+	return nil
 }
 
 func (r *OrderRepository) List(ctx context.Context, tenantID string, offset, limit int) ([]*domain.SalesOrder, int64, error) {
+	if tenantID == "" {
+		return nil, 0, errors.NewBusinessError(errors.CodeForbidden, "缺少租户上下文")
+	}
 	var total int64
 	query := r.db.WithContext(ctx).Model(&SalesOrderModel{}).Where("tenant_id = ?", tenantID)
 	query.Count(&total)

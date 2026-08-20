@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
 	"github.com/Tangyd893/ERP-Go/backend/services/iam-service/internal/domain"
@@ -11,13 +12,22 @@ import (
 
 const errUserDisabled = "用户已被禁用"
 
+const sessionTTL = 2 * time.Hour
+
+// SessionStore 可选会话缓存（Redis 试点，T-603）。
+type SessionStore interface {
+	Put(ctx context.Context, sessionID, userJSON string, ttl time.Duration) error
+	Delete(ctx context.Context, sessionID string) error
+}
+
 // AuthService 认证应用服务
 type AuthService struct {
-	userRepo    domain.UserRepository
-	roleRepo    domain.RoleRepository
-	tokenMgr    domain.TokenManager
-	passHasher  domain.PasswordHasher
-	auditRepo   domain.AuditRepository
+	userRepo   domain.UserRepository
+	roleRepo   domain.RoleRepository
+	tokenMgr   domain.TokenManager
+	passHasher domain.PasswordHasher
+	auditRepo  domain.AuditRepository
+	sessions   SessionStore
 }
 
 // NewAuthService 创建认证服务
@@ -37,13 +47,25 @@ func NewAuthService(
 	}
 }
 
+// WithSessionStore 注入 Redis 会话缓存；未注入时登录/登出行为不变。
+func (s *AuthService) WithSessionStore(store SessionStore) *AuthService {
+	s.sessions = store
+	return s
+}
+
 // LoginResult 登录结果
 type LoginResult struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int64  `json:"expires_in"`
+	AccessToken  string       `json:"access_token"`
+	RefreshToken string       `json:"refresh_token"`
+	TokenType    string       `json:"token_type"`
+	ExpiresIn    int64        `json:"expires_in"`
 	User         *domain.User `json:"user"`
+}
+
+type sessionPayload struct {
+	UserID   string `json:"user_id"`
+	TenantID string `json:"tenant_id"`
+	Username string `json:"username"`
 }
 
 // Login 用户登录
@@ -51,31 +73,31 @@ func (s *AuthService) Login(ctx context.Context, tenantID, username, password, i
 	user, err := s.userRepo.FindWithRoles(ctx, tenantID, username)
 	if err != nil {
 		s.writeAudit(ctx, &domain.AuditLog{
-		TenantID: tenantID, Username: username,
-		Action: domain.AuditLogin, ResourceType: "user",
-		Detail: "登录失败", IP: ip, UserAgent: userAgent,
-		Result: "fail", ResultDetail: "用户不存在",
-	})
+			TenantID: tenantID, Username: username,
+			Action: domain.AuditLogin, ResourceType: "user",
+			Detail: "登录失败", IP: ip, UserAgent: userAgent,
+			Result: "fail", ResultDetail: "用户不存在",
+		})
 		return nil, errors.NewBusinessError(errors.CodeLoginFailed, "用户名或密码错误")
 	}
 
 	if !user.IsActive() {
 		s.writeAudit(ctx, &domain.AuditLog{
-		TenantID: tenantID, UserID: user.ID, Username: username,
-		Action: domain.AuditLogin, ResourceType: "user", ResourceID: user.ID,
-		Detail: "登录失败", IP: ip, UserAgent: userAgent,
-		Result: "fail", ResultDetail: errUserDisabled,
-	})
+			TenantID: tenantID, UserID: user.ID, Username: username,
+			Action: domain.AuditLogin, ResourceType: "user", ResourceID: user.ID,
+			Detail: "登录失败", IP: ip, UserAgent: userAgent,
+			Result: "fail", ResultDetail: errUserDisabled,
+		})
 		return nil, errors.NewBusinessError(errors.CodeUserDisabled, errUserDisabled)
 	}
 
 	if !s.passHasher.Verify(password, user.PasswordHash) {
 		s.writeAudit(ctx, &domain.AuditLog{
-		TenantID: tenantID, UserID: user.ID, Username: username,
-		Action: domain.AuditLogin, ResourceType: "user", ResourceID: user.ID,
-		Detail: "登录失败", IP: ip, UserAgent: userAgent,
-		Result: "fail", ResultDetail: "密码错误",
-	})
+			TenantID: tenantID, UserID: user.ID, Username: username,
+			Action: domain.AuditLogin, ResourceType: "user", ResourceID: user.ID,
+			Detail: "登录失败", IP: ip, UserAgent: userAgent,
+			Result: "fail", ResultDetail: "密码错误",
+		})
 		return nil, errors.NewBusinessError(errors.CodeLoginFailed, "用户名或密码错误")
 	}
 
@@ -92,12 +114,14 @@ func (s *AuthService) Login(ctx context.Context, tenantID, username, password, i
 	user.RecordLogin()
 	_ = s.userRepo.Update(ctx, user)
 
+	s.putSession(ctx, user)
+
 	s.writeAudit(ctx, &domain.AuditLog{
-	TenantID: tenantID, UserID: user.ID, Username: username,
-	Action: domain.AuditLogin, ResourceType: "user", ResourceID: user.ID,
-	Detail: "登录成功", IP: ip, UserAgent: userAgent,
-	Result: "success",
-})
+		TenantID: tenantID, UserID: user.ID, Username: username,
+		Action: domain.AuditLogin, ResourceType: "user", ResourceID: user.ID,
+		Detail: "登录成功", IP: ip, UserAgent: userAgent,
+		Result: "success",
+	})
 
 	return &LoginResult{
 		AccessToken:  accessToken,
@@ -134,6 +158,8 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*L
 		return nil, errors.WrapError(errors.CodeInternalError, err)
 	}
 
+	s.putSession(ctx, user)
+
 	return &LoginResult{
 		AccessToken:  accessToken,
 		RefreshToken: newRefreshToken,
@@ -143,14 +169,20 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*L
 	}, nil
 }
 
-// Logout 登出
-func (s *AuthService) Logout(ctx context.Context, tenantID, userID, username, ip, userAgent string) error {
+// Logout 登出（可选吊销 refresh_token，并清除会话缓存）
+func (s *AuthService) Logout(ctx context.Context, tenantID, userID, username, ip, userAgent, refreshToken string) error {
+	if refreshToken != "" {
+		_ = s.tokenMgr.RevokeRefreshToken(refreshToken)
+	}
+	if s.sessions != nil && userID != "" {
+		_ = s.sessions.Delete(ctx, userID)
+	}
 	s.writeAudit(ctx, &domain.AuditLog{
-	TenantID: tenantID, UserID: userID, Username: username,
-	Action: domain.AuditLogout, ResourceType: "user", ResourceID: userID,
-	Detail: "登出", IP: ip, UserAgent: userAgent,
-	Result: "success",
-})
+		TenantID: tenantID, UserID: userID, Username: username,
+		Action: domain.AuditLogout, ResourceType: "user", ResourceID: userID,
+		Detail: "登出", IP: ip, UserAgent: userAgent,
+		Result: "success",
+	})
 	return nil
 }
 
@@ -175,6 +207,19 @@ func (s *AuthService) GetUserInfo(ctx context.Context, tenantID, userID string) 
 		return nil, errors.NewBusinessError(errors.CodeNotFound, "用户不存在")
 	}
 	return user, nil
+}
+
+func (s *AuthService) putSession(ctx context.Context, user *domain.User) {
+	if s.sessions == nil || user == nil {
+		return
+	}
+	body, err := json.Marshal(sessionPayload{
+		UserID: user.ID, TenantID: user.TenantID, Username: user.Username,
+	})
+	if err != nil {
+		return
+	}
+	_ = s.sessions.Put(ctx, user.ID, string(body), sessionTTL)
 }
 
 func (s *AuthService) writeAudit(ctx context.Context, log *domain.AuditLog) {
